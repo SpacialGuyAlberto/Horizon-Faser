@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using HorizonFaser.Models;
 
 namespace HorizonFaser.UI
 {
@@ -142,6 +146,16 @@ namespace HorizonFaser.UI
             if (welcomeText != null) welcomeText.text = $"Renderizando {segments.Count} segmentos en Cesium...";
             
             RenderSegmentsCesium(segments);
+
+            try
+            {
+                var clusters = await _repository.FetchClusterByProjectIdAsync(project.Id);
+                RenderPopsAndNvtsCesium(clusters);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Cesium] No se pudieron cargar los clusters/POPs: {ex.Message}");
+            }
         }
 
         private async void RenderSegmentsCesium(System.Collections.Generic.List<Models.QuarkBauSegment> segments)
@@ -259,6 +273,62 @@ namespace HorizonFaser.UI
 
             // Destruir el Canvas para que no tape la vista
             Destroy(gameObject);
+        }
+
+        private void RenderPopsAndNvtsCesium(List<Cluster> clusters)
+        {
+            var georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
+            if (georeference == null) return;
+
+            GameObject nodesParent = new GameObject("Cesium_Nodes_Project6");
+            nodesParent.transform.SetParent(georeference.transform, false);
+
+            Material popMaterial = new Material(Shader.Find("Unlit/Color"));
+            popMaterial.color = new Color(1f, 0.4f, 0f, 1f); // Naranja para POPs
+
+            Material nvtMaterial = new Material(Shader.Find("Unlit/Color"));
+            nvtMaterial.color = new Color(1f, 1f, 0f, 1f); // Amarillo para NVTs
+
+            int popCount = 0;
+            int nvtCount = 0;
+
+            foreach (var cluster in clusters)
+            {
+                if (cluster.Pops == null) continue;
+
+                foreach (var pop in cluster.Pops)
+                {
+                    // POP = Cubo grande naranja (10x10x10 m)
+                    GameObject popObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    popObj.name = $"POP_{pop.Id}";
+                    // CRÍTICO: SetParent PRIMERO para que CesiumGlobeAnchor encuentre el Georeference
+                    popObj.transform.SetParent(nodesParent.transform, false);
+                    popObj.transform.localScale = new Vector3(10f, 10f, 10f);
+                    popObj.GetComponent<MeshRenderer>().material = popMaterial;
+                    // Añadir anchor DESPUÉS de que ya es hijo del Georeference
+                    var popAnchor = popObj.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
+                    popAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(pop.Longitude, pop.Latitude, 5);
+                    popCount++;
+
+                    if (pop.Nvts == null) continue;
+
+                    foreach (var nvt in pop.Nvts)
+                    {
+                        // NVT = Cubo pequeño amarillo (3x3x3 m)
+                        GameObject nvtObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        nvtObj.name = $"NVT_{nvt.Id}";
+                        // CRÍTICO: SetParent PRIMERO
+                        nvtObj.transform.SetParent(nodesParent.transform, false);
+                        nvtObj.transform.localScale = new Vector3(3f, 3f, 3f);
+                        nvtObj.GetComponent<MeshRenderer>().material = nvtMaterial;
+                        var nvtAnchor = nvtObj.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
+                        nvtAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(nvt.Longitude, nvt.Latitude, 2);
+                        nvtCount++;
+                    }
+                }
+            }
+
+            Debug.Log($"[Cesium] Nodos: {popCount} POPs (naranja 10m) y {nvtCount} NVTs (amarillo 3m).");
         }
 
         private void ClearList()
@@ -475,6 +545,33 @@ namespace HorizonFaser.UI
             if (direction != Vector3.zero)
             {
                 transform.rotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90, 0, 0);
+            }
+        }
+    }
+
+    // --- SCRIPT PARA POSICIONAR NODOS GPS (POPs y NVTs) ---
+    // Espera a que CesiumGlobeAnchor calcule la posición real antes de mostrar el cubo.
+    public class NodePositioner : MonoBehaviour
+    {
+        public CesiumForUnity.CesiumGlobeAnchor Anchor;
+        public Vector3 NodeScale = new Vector3(5f, 5f, 5f);
+
+        private bool _positioned = false;
+
+        void Update()
+        {
+            if (_positioned) return;
+            if (Anchor == null) return;
+
+            Vector3 pos = transform.position;
+            float distFromOrigin = pos.magnitude;
+
+            // Cuando Cesium calcule la posición GPS real (ya no estará en 0,0,0)
+            if (distFromOrigin > 0.5f)
+            {
+                transform.localScale = NodeScale;
+                _positioned = true;
+                Debug.Log($"[Cesium] Nodo '{gameObject.name}' posicionado correctamente.");
             }
         }
     }

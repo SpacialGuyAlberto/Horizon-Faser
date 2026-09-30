@@ -36,6 +36,9 @@ namespace HorizonFaser.Repositories
         {
             var handler = new LoggingHandler(new HttpClientHandler());
             _httpClient = new HttpClient(handler);
+            // Reducimos el timeout a 5 segundos para evitar que la UI se quede congelada (traba) 
+            // si el servidor local no responde o no hay conexión.
+            _httpClient.Timeout = TimeSpan.FromSeconds(5);
         }
 
         public void Configure(string serverBaseUrl, string apiToken)
