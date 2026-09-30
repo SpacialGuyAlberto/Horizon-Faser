@@ -122,24 +122,25 @@ namespace HorizonFaser.UI
 
                 if (projects != null && projects.Count > 0)
                 {
-                    long activeProjectId = projects[0].Id;
-                    if (statusText != null) statusText.text = "Descargando Clusters y Segmentos...";
+                    if (statusText != null) statusText.text = "¡Sincronización completada!";
+                    await Task.Delay(1500);
 
-                    // 3. Fetch Clusters
-                    var clusters = await _repository.FetchClusterByProjectIdAsync(activeProjectId);
-                    Debug.Log($"[SYNC] Clusters descargados: {clusters?.Count ?? 0}");
-
-                    // 4. Fetch Segments
-                    var segments = await _repository.FetchProjectSegmentsByIdAsync(activeProjectId);
-                    Debug.Log($"[SYNC] Segmentos descargados: {segments?.Count ?? 0}");
+                    // Mostrar el Dashboard y pasarle los datos
+                    if (dashboardUI != null) 
+                    {
+                        var dashboard = dashboardUI.GetComponent<DashboardUIController>();
+                        if (dashboard != null)
+                        {
+                            dashboard.Setup(_repository, projects);
+                        }
+                        dashboardUI.SetActive(true);
+                    }
+                    gameObject.SetActive(false); 
                 }
-
-                if (statusText != null) statusText.text = "¡Sincronización completada!";
-                await Task.Delay(1500);
-                
-                // Mostrar el Dashboard y ocultar el Login
-                if (dashboardUI != null) dashboardUI.SetActive(true);
-                gameObject.SetActive(false); 
+                else
+                {
+                    if (statusText != null) statusText.text = "No se encontraron proyectos.";
+                }
             }
             catch (System.Exception ex)
             {

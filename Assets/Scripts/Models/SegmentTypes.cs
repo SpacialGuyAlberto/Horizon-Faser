@@ -30,9 +30,14 @@ namespace HorizonFaser.Models
     [Serializable]
     public class GeometryPoint
     {
+        [Newtonsoft.Json.JsonProperty("lat")]
         public double Latitude = 0.0;
+        
+        [Newtonsoft.Json.JsonProperty("lng")]
         public double Longitude = 0.0;
-        public double AltitudeZ = 0.0;
+        
+        [Newtonsoft.Json.JsonProperty("z")]
+        public double? AltitudeZ = 0.0;
 
         public GeometryPoint() {}
 

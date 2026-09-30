@@ -1986,12 +1986,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aa5e7045ec6a31048afad1c854a0d6a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_SpawnAsPersistentAnchor: 1
-  m_LoadSavedAnchorsOnStart: 0
-  m_ObjectSelectorDropdown: {fileID: 0}
-  m_DestroyObjectsButton: {fileID: 0}
-  m_AnchorText: {fileID: 0}
-  m_AnchorManager: {fileID: 8938065743044052896}
 --- !u!114 &3339367952642848919
 MonoBehaviour:
   m_ObjectHideFlags: 0
