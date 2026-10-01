@@ -1,8 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // Asegúrate de tener TextMeshPro importado en el proyecto
+using TMPro; 
 using HorizonFaser.Repositories;
 using System.Threading.Tasks;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 namespace HorizonFaser.UI
 {
@@ -83,7 +85,7 @@ namespace HorizonFaser.UI
 
         private void Start()
         {
-            ApplyMetaHorizonOSStyle();
+            ApplyPremiumDarkStyle();
             
             Camera mainCam = Camera.main;
             if (mainCam == null) mainCam = FindObjectOfType<Camera>();
@@ -179,34 +181,93 @@ namespace HorizonFaser.UI
             tmp.alignment = TMPro.TextAlignmentOptions.Center;
         }
 
-        private void ApplyMetaHorizonOSStyle()
+        private Sprite _proceduralRoundedSprite;
+        private Sprite GetRoundedSprite()
         {
-            // Colores extraídos exactamente de la captura de pantalla de Meta Horizon OS
-            Color panelBackground = new Color(0.10f, 0.11f, 0.13f, 1f); // Gris carbón muy oscuro y plano (opaco)
-            Color primaryBlue = new Color(0.16f, 0.38f, 0.79f, 1f); // El azul "Primary Button" suave
-            Color secondaryGrey = new Color(0.23f, 0.24f, 0.27f, 1f); // Gris "Secondary Button" (para inputs)
-            Color textWhite = new Color(0.95f, 0.95f, 0.95f, 1f); // Blanco limpio
-
-            // Cargar el sprite redondeado por defecto de Unity (para hacer el efecto "Pill/Bordes redondeados")
-            Sprite roundedSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
-
-            // 1. Fondo principal plano (Sin bordes brillantes ni sombras)
-            Image panel = GetComponent<Image>();
-            if (panel != null)
+            if (_proceduralRoundedSprite != null) return _proceduralRoundedSprite;
+            
+            // Generar una textura circular perfecta (16px de radio) para usarla como 9-slice
+            int r = 16;
+            int size = r * 2;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color32 white = new Color32(255, 255, 255, 255);
+            Color32 clear = new Color32(255, 255, 255, 0);
+            Color32[] colors = new Color32[size * size];
+            
+            for (int y = 0; y < size; y++)
             {
-                panel.color = panelBackground;
-                if (roundedSprite != null) 
+                for (int x = 0; x < size; x++)
                 {
-                    panel.sprite = roundedSprite;
-                    panel.type = Image.Type.Sliced;
+                    float dx = x - r + 0.5f;
+                    float dy = y - r + 0.5f;
+                    // Distancia al centro. Pequeño suavizado (antialiasing)
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                    if (dist <= r - 1f) colors[y * size + x] = white;
+                    else if (dist <= r) colors[y * size + x] = new Color32(255, 255, 255, (byte)(255 * (r - dist)));
+                    else colors[y * size + x] = clear;
                 }
+            }
+            tex.SetPixels32(colors);
+            tex.Apply();
+            
+            // Crear el sprite con bordes 9-slice (r, r, r, r)
+            _proceduralRoundedSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
+            return _proceduralRoundedSprite;
+        }
+
+        private void ApplyPremiumDarkStyle()
+        {
+            // Estilo "Railway" con esquinas redondeadas y gradiente sólido
+            Color32 bgTopColor = new Color32(31, 31, 34, 255);      
+            Color32 bgBottomColor = new Color32(18, 18, 20, 255);   
+            
+            Color32 cardColor = new Color32(30, 30, 32, 255);     
+            Color32 inputOutline = new Color32(63, 63, 70, 255);  
+            
+            Color32 buttonColor = new Color32(255, 107, 0, 255);  
+            Color32 buttonText = new Color32(20, 20, 22, 255);    
+            
+            Color32 textWhite = new Color32(245, 245, 245, 255);  
+            Color32 textMuted = new Color32(150, 150, 155, 255);  
+
+            // Usamos nuestro generador infalible de bordes redondeados
+            Sprite roundedSprite = GetRoundedSprite();
+
+            // 1. Fondo del Panel (Sólido con Gradiente)
+            Image panel = GetComponent<Image>();
+            
+            // ¡CRÍTICO! Si el objeto raíz no tiene Image (fondo transparente), le inyectamos uno.
+            if (panel == null)
+            {
+                GameObject bgObj = new GameObject("SolidBackground");
+                bgObj.transform.SetParent(this.transform, false);
+                bgObj.transform.SetAsFirstSibling(); // Lo enviamos al fondo absoluto
                 
-                // Limpiar cualquier efecto viejo
-                var outline = panel.gameObject.GetComponent<Outline>();
-                if (outline != null) Destroy(outline);
+                panel = bgObj.AddComponent<Image>();
+                RectTransform rt = bgObj.GetComponent<RectTransform>();
+                rt.anchorMin = Vector2.zero; // Expandir a todo el Canvas
+                rt.anchorMax = Vector2.one;
+                rt.sizeDelta = new Vector2(50, 50); // Un pequeño margen extra
             }
 
-            // 2. Inputs usando el estilo "Secondary Button" de Meta
+            if (panel != null)
+            {
+                panel.color = Color.white; // El gradiente dictará el color final
+                panel.sprite = roundedSprite;
+                panel.type = Image.Type.Sliced;
+                panel.pixelsPerUnitMultiplier = 1f; 
+                
+                var outline = panel.gameObject.GetComponent<Outline>();
+                if (outline != null) Destroy(outline); 
+
+                // Añadir el gradiente vertical sólido
+                var gradient = panel.gameObject.GetComponent<UIGradient>();
+                if (gradient == null) gradient = panel.gameObject.AddComponent<UIGradient>();
+                gradient.topColor = bgTopColor;
+                gradient.bottomColor = bgBottomColor;
+            }
+
+            // 2. Inputs (Email y Password)
             TMP_InputField[] inputs = { emailInput, passwordInput };
             foreach (var input in inputs)
             {
@@ -215,55 +276,50 @@ namespace HorizonFaser.UI
                     Image inputImg = input.targetGraphic as Image;
                     if (inputImg != null)
                     {
-                        inputImg.color = secondaryGrey;
-                        if (roundedSprite != null)
-                        {
-                            inputImg.sprite = roundedSprite;
-                            inputImg.type = Image.Type.Sliced;
-                            inputImg.pixelsPerUnitMultiplier = 3f; // Multiplicador para redondear más los bordes
-                        }
+                        inputImg.color = cardColor;
+                        inputImg.sprite = roundedSprite;
+                        inputImg.type = Image.Type.Sliced;
+                        inputImg.pixelsPerUnitMultiplier = 1f; 
                     }
                     
-                    var inputOutline = input.targetGraphic.gameObject.GetComponent<Outline>();
-                    if (inputOutline != null) Destroy(inputOutline);
+                    var inputOutlineComp = input.targetGraphic.gameObject.GetComponent<Outline>();
+                    if (inputOutlineComp == null) inputOutlineComp = input.targetGraphic.gameObject.AddComponent<Outline>();
+                    inputOutlineComp.effectColor = inputOutline;
+                    inputOutlineComp.effectDistance = new Vector2(1, -1); // Borde fino y definido
 
                     if (input.textComponent != null) input.textComponent.color = textWhite;
-                    if (input.placeholder != null) input.placeholder.color = new Color(0.6f, 0.6f, 0.6f, 1f); 
+                    if (input.placeholder != null) input.placeholder.color = textMuted; 
                 }
             }
 
-            // 3. Botón de Login estilo "Primary Button" de Meta
+            // 3. Botón de Entrar (Naranja Prominente)
             if (loginButton != null && loginButton.targetGraphic != null)
             {
                 Image btnImg = loginButton.targetGraphic as Image;
                 if (btnImg != null)
                 {
-                    btnImg.color = primaryBlue;
-                    if (roundedSprite != null)
-                    {
-                        btnImg.sprite = roundedSprite;
-                        btnImg.type = Image.Type.Sliced;
-                        btnImg.pixelsPerUnitMultiplier = 2f; // Redondeo tipo Pill
-                    }
+                    btnImg.color = buttonColor; 
+                    btnImg.sprite = roundedSprite;
+                    btnImg.type = Image.Type.Sliced;
+                    btnImg.pixelsPerUnitMultiplier = 1f; 
                 }
                 
-                // Los botones de Meta Horizon OS en esa pantalla son planos, sin sombra
-                var btnShadow = loginButton.gameObject.GetComponent<Shadow>();
-                if (btnShadow != null) Destroy(btnShadow);
+                // Sin borde extra para el botón, ya que es sólido y brillante
+                var btnOutline = loginButton.gameObject.GetComponent<Outline>();
+                if (btnOutline != null) Destroy(btnOutline);
 
                 var btnText = loginButton.GetComponentInChildren<TextMeshProUGUI>();
                 if (btnText != null) 
                 {
-                    btnText.color = textWhite;
-                    // No negrita pesada, la tipografía de Meta es bastante limpia
-                    btnText.fontStyle = FontStyles.Normal;
+                    btnText.color = buttonText;
+                    btnText.fontStyle = FontStyles.Bold; // Resaltado e imponente
                 }
             }
 
-            // Texto de estado
+            // 4. Texto de estado
             if (statusText != null)
             {
-                statusText.color = new Color(0.7f, 0.7f, 0.7f, 1f); 
+                statusText.color = textMuted; 
             }
         }
 
@@ -335,6 +391,48 @@ namespace HorizonFaser.UI
             {
                 if (loginButton != null) loginButton.interactable = true;
             }
+        }
+    }
+
+    [AddComponentMenu("UI/Effects/Gradient")]
+    public class UIGradient : UnityEngine.UI.BaseMeshEffect
+    {
+        public Color32 topColor = Color.white;
+        public Color32 bottomColor = Color.black;
+
+        public override void ModifyMesh(UnityEngine.UI.VertexHelper vh)
+        {
+            if (!IsActive()) return;
+
+            var vertexList = new List<UIVertex>();
+            vh.GetUIVertexStream(vertexList);
+            int count = vertexList.Count;
+            if (count == 0) return;
+
+            float bottomY = vertexList[0].position.y;
+            float topY = vertexList[0].position.y;
+
+            for (int i = 1; i < count; i++)
+            {
+                float y = vertexList[i].position.y;
+                if (y > topY) topY = y;
+                else if (y < bottomY) bottomY = y;
+            }
+
+            float uiElementHeight = topY - bottomY;
+            if (uiElementHeight <= 0) return;
+
+            for (int i = 0; i < count; i++)
+            {
+                UIVertex uiVertex = vertexList[i];
+                byte colorAlpha = uiVertex.color.a;
+                Color32 color = Color32.Lerp(bottomColor, topColor, (uiVertex.position.y - bottomY) / uiElementHeight);
+                color.a = (byte)((color.a * colorAlpha) / 255);
+                uiVertex.color = color;
+                vertexList[i] = uiVertex;
+            }
+            vh.Clear();
+            vh.AddUIVertexTriangleStream(vertexList);
         }
     }
 }

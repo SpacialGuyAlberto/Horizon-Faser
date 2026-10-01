@@ -51,11 +51,21 @@ namespace HorizonFaser.XR
             foreach (var node in _nodes)
             {
                 if (node == null) continue;
-                // Ignorar Segmentos (los tubos). El cálculo de ángulos hacia el centro de un tubo de 10km 
-                // no tiene sentido matemático y confunde al imán.
-                if (node.nodeType == NetworkNodeType.Segmento) continue;
 
-                Vector3 toNode = node.transform.position - pointer.position;
+                Vector3 targetPoint = node.transform.position;
+
+                if (node.nodeType == NetworkNodeType.Segmento)
+                {
+                    // Usar lossyScale garantiza que obtenemos el tamaño real en el mundo 
+                    // sin importar cómo esté escalado el padre (Cesium).
+                    float halfLength = node.transform.lossyScale.y;
+                    Vector3 pA = node.transform.position - node.transform.up * halfLength;
+                    Vector3 pB = node.transform.position + node.transform.up * halfLength;
+                    
+                    targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                }
+
+                Vector3 toNode = targetPoint - pointer.position;
                 float distance = toNode.magnitude;
                 float angle = Vector3.Angle(pointer.forward, toNode.normalized);
 
@@ -63,8 +73,14 @@ namespace HorizonFaser.XR
                 if (angle < 25f)
                 {
                     // Fórmula mágica: El ángulo manda, pero a ángulos similares, gana el más cercano.
-                    // Cada 100 metros añaden 0.5 a la puntuación del ángulo.
-                    float score = angle + (distance * 0.005f);
+                    float score = angle + (distance * 0.0001f);
+
+                    // TRUCO: Si estamos apuntando directamente a un tubo de fibra (ángulo < 5 grados),
+                    // le damos una puntuación invencible para que gane sobre cualquier POP cercano.
+                    if (node.nodeType == NetworkNodeType.Segmento && angle < 5f)
+                    {
+                        score = -1000f + angle; // Gana siempre, pero si hay varios tubos, gana el del ángulo más perfecto.
+                    }
 
                     if (score < bestScore)
                     {
@@ -84,7 +100,16 @@ namespace HorizonFaser.XR
                 
                 if (node == _hoveredNode)
                 {
-                    target = _originalScales[node] * scaleMultiplier;
+                    if (node.nodeType == NetworkNodeType.Segmento)
+                    {
+                        // Para los tubos, engordamos exageradamente el grosor (50x) 
+                        target.x = _originalScales[node].x * 50f;
+                        target.z = _originalScales[node].z * 50f;
+                    }
+                    else
+                    {
+                        target = _originalScales[node] * scaleMultiplier;
+                    }
                 }
                 
                 // Suavizar el crecimiento
@@ -135,6 +160,37 @@ namespace HorizonFaser.XR
             if (Camera.main != null) return Camera.main.transform;
 
             return null;
+        }
+
+        /// <summary>
+        /// Calcula el punto exacto de un segmento 3D que pasa más cerca de un rayo infinito.
+        /// Necesario para apuntar con láser a tubos largos.
+        /// </summary>
+        private Vector3 GetClosestPointOnSegmentToRay(Vector3 segA, Vector3 segB, Vector3 rayOrigin, Vector3 rayDir)
+        {
+            Vector3 u = segB - segA;
+            Vector3 v = rayDir;
+            Vector3 w = segA - rayOrigin;
+
+            float a = Vector3.Dot(u, u);
+            float b = Vector3.Dot(u, v);
+            float c = Vector3.Dot(v, v);
+            float d = Vector3.Dot(u, w);
+            float e = Vector3.Dot(v, w);
+            float D = a * c - b * b;
+            float sc;
+
+            if (D < 1e-6f)
+            {
+                sc = 0.0f;
+            }
+            else
+            {
+                sc = (b * e - c * d) / D;
+            }
+
+            sc = Mathf.Clamp01(sc);
+            return segA + sc * u;
         }
     }
 }
