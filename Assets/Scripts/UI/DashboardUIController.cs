@@ -246,17 +246,89 @@ namespace HorizonFaser.UI
                     float distance = Vector3.Distance(posA, posB);
                     Vector3 direction = (posB - posA).normalized;
 
-                    // 3. Crear el cilindro dinámico
-                    GameObject cyl = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                    cyl.name = $"Segment_{segment.Id}_Line_{i}";
+                    // 3. Crear el contenedor lógico del segmento (lo que maneja la escala y rotación)
+                    GameObject cyl = new GameObject($"Segment_{segment.Id}_Line_{i}");
                     cyl.transform.SetParent(segmentsParent.transform, true);
-                    cyl.GetComponent<MeshRenderer>().material = segmentMaterial;
+
+                    // 4. Instanciar el FBX del Tubo Corrugado como HIJO del contenedor
+                    GameObject ductPrefab = Resources.Load<GameObject>("Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture");
+                    GameObject ductVisual;
+                    
+                    if (ductPrefab != null)
+                    {
+                        ductVisual = UnityEngine.Object.Instantiate(ductPrefab);
+                        ductVisual.transform.SetParent(cyl.transform, false);
+                        
+                        // AUTO-ALINEACIÓN Y ESCALA MÁGICA
+                        // Buscamos la malla del FBX para saber cómo viene orientado de fábrica
+                        MeshFilter mf = ductVisual.GetComponentInChildren<MeshFilter>();
+                        if (mf != null && mf.sharedMesh != null)
+                        {
+                            Vector3 boundsSize = mf.sharedMesh.bounds.size;
+                            
+                            // Determinar cuál es el eje más largo (la longitud real del tubo)
+                            float maxAxis = Mathf.Max(boundsSize.x, boundsSize.y, boundsSize.z);
+                            
+                            // Rotarlo para que su eje más largo apunte hacia ARRIBA (Eje Y local del padre)
+                            if (maxAxis == boundsSize.x)
+                            {
+                                ductVisual.transform.localRotation = Quaternion.Euler(0, 0, 90); // X a Y
+                                // Ajustar escala para que mida exactamente 2 unidades de largo (como un Cilindro nativo)
+                                float scaleModifier = 2f / boundsSize.x;
+                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
+                            }
+                            else if (maxAxis == boundsSize.z)
+                            {
+                                ductVisual.transform.localRotation = Quaternion.Euler(90, 0, 0); // Z a Y
+                                float scaleModifier = 2f / boundsSize.z;
+                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
+                            }
+                            else
+                            {
+                                // Ya está orientado en Y
+                                float scaleModifier = 2f / boundsSize.y;
+                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
+                            }
+                        }
+
+                        // Aplicar Material URP para que no se vea negro
+                        Texture2D tex = Resources.Load<Texture2D>("Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture");
+                        Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                        if (tex != null) urpMat.mainTexture = tex;
+                        else urpMat.color = segmentMaterial.color;
+
+                        foreach (var r in ductVisual.GetComponentsInChildren<Renderer>())
+                        {
+                            r.material = urpMat;
+                        }
+                    }
+                    else
+                    {
+                        // Fallback si no carga el FBX
+                        ductVisual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                        ductVisual.transform.SetParent(cyl.transform, false);
+                        ductVisual.GetComponent<MeshRenderer>().material = segmentMaterial;
+                    }
+
+                    // Necesitamos que el objeto padre tenga un BoxCollider para que funcione el clic
+                    BoxCollider box = cyl.AddComponent<BoxCollider>();
+                    // Tamaño 2 de alto en Y (porque SegmentConnector asume cilindro primitivo)
+                    box.size = new Vector3(1f, 2f, 1f); 
+
                     
                     // Añadir script de conexión dinámica para que se actualice CADA FRAME
                     var connector = cyl.AddComponent<SegmentConnector>();
                     connector.PointA = anchorObjA.transform;
                     connector.PointB = anchorObjB.transform;
                     connector.Thickness = 0.5f; // Medio metro de grosor para que se vea bien desde lejos
+                    
+                    // --- NUESTRO SCRIPT DE INTERACCIÓN ---
+                    HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
+                        cyl, 
+                        HorizonFaser.XR.NetworkNodeType.Segmento, 
+                        $"Segmento {segment.Id}", 
+                        $"Longitud aproximada: {distance:F1}m\nDesde: {pA.Latitude:F5}, {pA.Longitude:F5}"
+                    );
                     
                     totalLines++;
                 }
@@ -271,12 +343,21 @@ namespace HorizonFaser.UI
                 mainCam.transform.LookAt(Vector3.zero);
             }
 
-            // Destruir el Canvas para que no tape la vista
-            Destroy(gameObject);
+            // Ocultar el Canvas en lugar de destruirlo para que los métodos async (Pops y NVTs) no exploten.
+            gameObject.SetActive(false);
         }
 
         private void RenderPopsAndNvtsCesium(List<Cluster> clusters)
         {
+            // --- FIX DE DISTANCIA DEL LÁSER ---
+            // Por defecto, XRRayInteractor solo llega a 30 metros. En mapas de Cesium, los nodos pueden estar a kilómetros.
+            // Esto aumenta el alcance del rayo a 50,000 metros para garantizar que llegue.
+            var rayInteractors = UnityEngine.Object.FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor>(UnityEngine.FindObjectsInactive.Include, UnityEngine.FindObjectsSortMode.None);
+            foreach (var ray in rayInteractors)
+            {
+                ray.maxRaycastDistance = 50000f;
+            }
+
             var georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
             if (georeference == null) return;
 
@@ -298,31 +379,108 @@ namespace HorizonFaser.UI
 
                 foreach (var pop in cluster.Pops)
                 {
-                    // POP = Cubo grande naranja (10x10x10 m)
-                    GameObject popObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    popObj.name = $"POP_{pop.Id}";
-                    // CRÍTICO: SetParent PRIMERO para que CesiumGlobeAnchor encuentre el Georeference
-                    popObj.transform.SetParent(nodesParent.transform, false);
-                    popObj.transform.localScale = new Vector3(10f, 10f, 10f);
-                    popObj.GetComponent<MeshRenderer>().material = popMaterial;
-                    // Añadir anchor DESPUÉS de que ya es hijo del Georeference
+                    GameObject popPrefab = Resources.Load<GameObject>("Models/POP/Meshy_AI_pop_shelter_3d_1001095043_image-to-3d-texture");
+                    GameObject popObj;
+                    
+                    if (popPrefab != null)
+                    {
+                        popObj = UnityEngine.Object.Instantiate(popPrefab);
+                        popObj.name = $"POP_{pop.Id}";
+                        popObj.transform.SetParent(nodesParent.transform, false);
+                        
+                        // Escala: Ajustar a gusto, probamos con 30f como base.
+                        popObj.transform.localScale = new Vector3(30f, 30f, 30f); 
+
+                        // Material URP dinámico
+                        Texture2D popTex = Resources.Load<Texture2D>("Models/POP/Meshy_AI_pop_shelter_3d_1001095043_image-to-3d-texture");
+                        Material popMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                        if (popTex != null) popMat.mainTexture = popTex;
+                        else popMat.color = popMaterial.color;
+
+                        foreach (var renderer in popObj.GetComponentsInChildren<Renderer>())
+                        {
+                            renderer.material = popMat;
+                        }
+                    }
+                    else
+                    {
+                        // Fallback
+                        popObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        popObj.name = $"POP_{pop.Id}_Fallback";
+                        popObj.transform.SetParent(nodesParent.transform, false);
+                        popObj.transform.localScale = new Vector3(8f, 8f, 8f);
+                        popObj.GetComponent<MeshRenderer>().material = popMaterial;
+                    }
+
+                    // Añadir script de interacción
+                    string popId = pop.Id.ToString();
+                    string popName = pop.Name;
+                    HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
+                        popObj, 
+                        HorizonFaser.XR.NetworkNodeType.Pop, 
+                        $"POP {popName}", 
+                        $"ID: {popId}\nPos: {pop.Latitude:F5}, {pop.Longitude:F5}"
+                    );
+
+                    // Anclar a Cesium (Altura 0 para el suelo)
                     var popAnchor = popObj.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
-                    popAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(pop.Longitude, pop.Latitude, 5);
+                    popAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(pop.Longitude, pop.Latitude, 0);
                     popCount++;
 
                     if (pop.Nvts == null) continue;
 
                     foreach (var nvt in pop.Nvts)
                     {
-                        // NVT = Cubo pequeño amarillo (3x3x3 m)
-                        GameObject nvtObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                        nvtObj.name = $"NVT_{nvt.Id}";
-                        // CRÍTICO: SetParent PRIMERO
-                        nvtObj.transform.SetParent(nodesParent.transform, false);
-                        nvtObj.transform.localScale = new Vector3(3f, 3f, 3f);
-                        nvtObj.GetComponent<MeshRenderer>().material = nvtMaterial;
+                        GameObject nvtPrefab = Resources.Load<GameObject>("Models/Meshy_Ai_street_cabinet/Meshy_AI_street_cabinet_3d_1001093310_image-to-3d-texture");
+                        GameObject nvtObj;
+                        
+                        if (nvtPrefab != null)
+                        {
+                            nvtObj = UnityEngine.Object.Instantiate(nvtPrefab);
+                            nvtObj.name = $"NVT_{nvt.Id}";
+                            nvtObj.transform.SetParent(nodesParent.transform, false);
+                            
+                            // 1. Escala: Los FBX a veces vienen en centímetros (0.01), así que lo escalamos más grande (100)
+                            // Si lo ves muy grande, bájalo a 10f o 3f.
+                            nvtObj.transform.localScale = new Vector3(30f, 30f, 30f); 
+
+                            // 2. Fix de Material para URP:
+                            // Los FBX traen material "Standard" que se ve negro/transparente en URP.
+                            // Creamos un material URP Lit y le asignamos la textura directamente por código.
+                            Texture2D baseTex = Resources.Load<Texture2D>("Models/Meshy_Ai_street_cabinet/Meshy_AI_street_cabinet_3d_1001093310_image-to-3d-texture");
+                            Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                            if (baseTex != null) urpMat.mainTexture = baseTex;
+                            else urpMat.color = Color.yellow; // Fallback visual
+
+                            // Aplicarlo a todas las mallas del FBX
+                            foreach (var renderer in nvtObj.GetComponentsInChildren<Renderer>())
+                            {
+                                renderer.material = urpMat;
+                            }
+                        }
+                        else
+                        {
+                            // Fallback por si Unity aún no ha importado el FBX
+                            nvtObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            nvtObj.name = $"NVT_{nvt.Id}_Fallback";
+                            nvtObj.transform.SetParent(nodesParent.transform, false);
+                            nvtObj.transform.localScale = new Vector3(3f, 6f, 2f);
+                            nvtObj.GetComponent<MeshRenderer>().material = nvtMaterial;
+                        }
+
+                        // Añadir la interacción 3D para que salga la Card al clickear/apuntar
+                        string nvtId = nvt.Id.ToString();
+                        string nvtNameFixed = nvt.Identifier; 
+                        HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
+                            nvtObj, 
+                            HorizonFaser.XR.NetworkNodeType.Netzverteiler, 
+                            $"NVT {nvtNameFixed}", 
+                            $"ID: {nvtId}\nPos: {nvt.Latitude:F5}, {nvt.Longitude:F5}"
+                        );
+
+                        // Anclarlo geográficamente con Cesium
                         var nvtAnchor = nvtObj.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
-                        nvtAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(nvt.Longitude, nvt.Latitude, 2);
+                        nvtAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(nvt.Longitude, nvt.Latitude, 0); // Altura 0 para que repose en el suelo
                         nvtCount++;
                     }
                 }
@@ -331,7 +489,135 @@ namespace HorizonFaser.UI
             Debug.Log($"[Cesium] Nodos: {popCount} POPs (naranja 10m) y {nvtCount} NVTs (amarillo 3m).");
         }
 
+        private GameObject _activeNodeCard;
+
+        public void ShowNodeCard(string type, string id, string name, double lat, double lon)
+        {
+            if (_activeNodeCard != null) Destroy(_activeNodeCard);
+
+            Camera mainCam = Camera.main;
+            if (mainCam == null) return;
+
+            // 1. Crear el Canvas flotante (Card)
+            _activeNodeCard = new GameObject("NodeInfoCard");
+            // Lo ponemos flotando frente al usuario (1.5 metros adelante)
+            _activeNodeCard.transform.position = mainCam.transform.position + mainCam.transform.forward * 1.5f;
+            _activeNodeCard.transform.LookAt(_activeNodeCard.transform.position + mainCam.transform.forward);
+            _activeNodeCard.transform.localScale = new Vector3(0.002f, 0.002f, 0.002f);
+
+            Canvas canvas = _activeNodeCard.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            _activeNodeCard.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+            RectTransform canvasRT = _activeNodeCard.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(400, 250);
+
+            // 2. Fondo estilo Meta Horizon OS (Oscuro, translúcido, bordes suaves simulados)
+            GameObject bgObj = new GameObject("Background");
+            bgObj.transform.SetParent(_activeNodeCard.transform, false);
+            UnityEngine.UI.Image bgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
+            bgImage.color = new Color(0.12f, 0.13f, 0.16f, 0.9f); // Dark Slate translúcido
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = Vector2.zero;
+            bgRT.anchorMax = Vector2.one;
+            bgRT.sizeDelta = Vector2.zero;
+
+            // 3. Barra decorativa superior (Color según tipo)
+            GameObject headerBarObj = new GameObject("HeaderBar");
+            headerBarObj.transform.SetParent(bgObj.transform, false);
+            UnityEngine.UI.Image headerImg = headerBarObj.AddComponent<UnityEngine.UI.Image>();
+            headerImg.color = (type == "POP") ? new Color(1f, 0.5f, 0.1f) : new Color(1f, 0.8f, 0.2f);
+            RectTransform headerRT = headerBarObj.GetComponent<RectTransform>();
+            headerRT.anchorMin = new Vector2(0, 1);
+            headerRT.anchorMax = new Vector2(1, 1);
+            headerRT.pivot = new Vector2(0.5f, 1);
+            headerRT.sizeDelta = new Vector2(0, 10);
+            headerRT.anchoredPosition = Vector2.zero;
+
+            // 4. Texto del Título
+            GameObject titleObj = new GameObject("TitleText");
+            titleObj.transform.SetParent(bgObj.transform, false);
+            var titleText = titleObj.AddComponent<UnityEngine.UI.Text>();
+            titleText.text = $"{type} | {id}";
+            titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            titleText.fontSize = 28;
+            titleText.fontStyle = FontStyle.Bold;
+            titleText.color = Color.white;
+            titleText.alignment = TextAnchor.UpperLeft;
+            RectTransform titleRT = titleObj.GetComponent<RectTransform>();
+            titleRT.anchorMin = new Vector2(0, 1);
+            titleRT.anchorMax = new Vector2(1, 1);
+            titleRT.pivot = new Vector2(0, 1);
+            titleRT.sizeDelta = new Vector2(360, 40);
+            titleRT.anchoredPosition = new Vector2(20, -30);
+
+            // 5. Texto de Información (Nombre)
+            GameObject nameObj = new GameObject("NameText");
+            nameObj.transform.SetParent(bgObj.transform, false);
+            var nameText = nameObj.AddComponent<UnityEngine.UI.Text>();
+            nameText.text = $"Nombre: {(!string.IsNullOrEmpty(name) ? name : "Sin Nombre")}";
+            nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            nameText.fontSize = 20;
+            nameText.color = new Color(0.8f, 0.8f, 0.85f); // Gris claro
+            nameText.alignment = TextAnchor.UpperLeft;
+            RectTransform nameRT = nameObj.GetComponent<RectTransform>();
+            nameRT.anchorMin = new Vector2(0, 1);
+            nameRT.anchorMax = new Vector2(1, 1);
+            nameRT.pivot = new Vector2(0, 1);
+            nameRT.sizeDelta = new Vector2(360, 30);
+            nameRT.anchoredPosition = new Vector2(20, -80);
+
+            // 6. Texto de Coordenadas
+            GameObject coordObj = new GameObject("CoordText");
+            coordObj.transform.SetParent(bgObj.transform, false);
+            var coordText = coordObj.AddComponent<UnityEngine.UI.Text>();
+            coordText.text = $"Lat: {lat:F6}\nLon: {lon:F6}";
+            coordText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            coordText.fontSize = 18;
+            coordText.color = new Color(0.6f, 0.65f, 0.7f); // Gris más oscuro
+            coordText.alignment = TextAnchor.UpperLeft;
+            RectTransform coordRT = coordObj.GetComponent<RectTransform>();
+            coordRT.anchorMin = new Vector2(0, 1);
+            coordRT.anchorMax = new Vector2(1, 1);
+            coordRT.pivot = new Vector2(0, 1);
+            coordRT.sizeDelta = new Vector2(360, 50);
+            coordRT.anchoredPosition = new Vector2(20, -120);
+
+            // 7. Botón de Cerrar (Estilo limpio)
+            GameObject closeBtnObj = new GameObject("CloseButton");
+            closeBtnObj.transform.SetParent(bgObj.transform, false);
+            UnityEngine.UI.Image closeBg = closeBtnObj.AddComponent<UnityEngine.UI.Image>();
+            closeBg.color = new Color(0.2f, 0.22f, 0.25f, 1f);
+            UnityEngine.UI.Button closeBtn = closeBtnObj.AddComponent<UnityEngine.UI.Button>();
+            
+            // XR INTERACTION: Para que el botón de cerrar funcione con el mando de Quest
+            closeBtnObj.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>();
+            
+            closeBtn.onClick.AddListener(() => Destroy(_activeNodeCard));
+
+            RectTransform closeBtnRT = closeBtnObj.GetComponent<RectTransform>();
+            closeBtnRT.anchorMin = new Vector2(0.5f, 0);
+            closeBtnRT.anchorMax = new Vector2(0.5f, 0);
+            closeBtnRT.pivot = new Vector2(0.5f, 0);
+            closeBtnRT.sizeDelta = new Vector2(120, 40);
+            closeBtnRT.anchoredPosition = new Vector2(0, 20);
+
+            GameObject closeTextObj = new GameObject("CloseText");
+            closeTextObj.transform.SetParent(closeBtnObj.transform, false);
+            var closeText = closeTextObj.AddComponent<UnityEngine.UI.Text>();
+            closeText.text = "Cerrar";
+            closeText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            closeText.fontSize = 18;
+            closeText.color = Color.white;
+            closeText.alignment = TextAnchor.MiddleCenter;
+            RectTransform closeTextRT = closeTextObj.GetComponent<RectTransform>();
+            closeTextRT.anchorMin = Vector2.zero;
+            closeTextRT.anchorMax = Vector2.one;
+            closeTextRT.sizeDelta = Vector2.zero;
+        }
+
         private void ClearList()
+
         {
             if (_listContainer == null) return;
             foreach (Transform child in _listContainer.transform)
