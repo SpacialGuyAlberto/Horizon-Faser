@@ -11,6 +11,7 @@ namespace HorizonFaser.Models
         public string HouseNumber = "";
         public double Latitude = 0.0;
         public double Longitude = 0.0;
+        public double Elevation = 0.0; // Añadido para recibir la altitud del server
         public string InstallationLocation = "";
         public string Status = "";
         public long? NetzverteilerId;

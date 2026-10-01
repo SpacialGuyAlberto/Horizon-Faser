@@ -66,10 +66,12 @@ namespace HorizonFaser.Models
         public double LengthMeters = 0.0;
         public double TargetDepthMeters = 0.60;
         public double DuctDiameterMeters = 0.05;
-        public double StartLatitude = 0.0;
-        public double StartLongitude = 0.0;
-        public double EndLatitude = 0.0;
-        public double EndLongitude = 0.0;
+        public double? StartLatitude = 0.0;
+        public double? StartLongitude = 0.0;
+        public double? StartElevation = 0.0;
+        public double? EndLatitude = 0.0;
+        public double? EndLongitude = 0.0;
+        public double? EndElevation = 0.0;
         public List<GeometryPoint> Geometry = new List<GeometryPoint>();
         public string TrafficLevel;
         public string PlannedStartDate;
