@@ -90,6 +90,38 @@ namespace HorizonFaser.UI
                 transform.position = mainCam.transform.position + mainCam.transform.forward * 1.5f;
                 transform.rotation = Quaternion.LookRotation(transform.position - mainCam.transform.position);
             }
+            
+            // Iniciar corrutina para forzar la longitud del láser XR continuamente
+            StartCoroutine(ForceXRLaserDistanceRoutine());
+
+            // Crear el Imán de Puntero (Magnet) para selección sin físicas
+            if (FindObjectOfType<HorizonFaser.XR.XRPointerMagnet>() == null)
+            {
+                GameObject magnet = new GameObject("XRPointerMagnet");
+                magnet.AddComponent<HorizonFaser.XR.XRPointerMagnet>();
+            }
+        }
+
+        private System.Collections.IEnumerator ForceXRLaserDistanceRoutine()
+        {
+            while (true)
+            {
+                // Aumentamos el alcance físico del raycast a 50km
+                var rayInteractors = UnityEngine.Object.FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor>(UnityEngine.FindObjectsInactive.Include, UnityEngine.FindObjectsSortMode.None);
+                foreach (var ray in rayInteractors)
+                {
+                    if (ray.maxRaycastDistance < 50000f) ray.maxRaycastDistance = 50000f;
+                }
+
+                // Aumentamos el largo VISUAL del láser (la línea roja/blanca)
+                var lineVisuals = UnityEngine.Object.FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals.XRInteractorLineVisual>(UnityEngine.FindObjectsInactive.Include, UnityEngine.FindObjectsSortMode.None);
+                foreach (var line in lineVisuals)
+                {
+                    if (line.lineLength < 50000f) line.lineLength = 50000f;
+                }
+
+                yield return new WaitForSeconds(1.5f);
+            }
         }
 
         private void CreateListContainer()
@@ -291,11 +323,27 @@ namespace HorizonFaser.UI
                             }
                         }
 
-                        // Aplicar Material URP para que no se vea negro
-                        Texture2D tex = Resources.Load<Texture2D>("Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture");
+                        // Aplicar Material URP PBR para realismo
+                        string basePath = "Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture";
+                        Texture2D tex = Resources.Load<Texture2D>(basePath);
+                        Texture2D normalTex = Resources.Load<Texture2D>(basePath + "_normal");
+
                         Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                        
+                        // Textura base (Color)
                         if (tex != null) urpMat.mainTexture = tex;
                         else urpMat.color = segmentMaterial.color;
+
+                        // Mapa de normales (Relieve/Rugosidad)
+                        if (normalTex != null)
+                        {
+                            urpMat.SetTexture("_BumpMap", normalTex);
+                            urpMat.EnableKeyword("_NORMALMAP");
+                        }
+                        
+                        // Ajustes de plástico para el tubo (no es metálico, pero sí tiene brillo)
+                        urpMat.SetFloat("_Metallic", 0.0f);
+                        urpMat.SetFloat("_Smoothness", 0.6f); // Brillo tipo plástico
 
                         foreach (var r in ductVisual.GetComponentsInChildren<Renderer>())
                         {
@@ -349,14 +397,7 @@ namespace HorizonFaser.UI
 
         private void RenderPopsAndNvtsCesium(List<Cluster> clusters)
         {
-            // --- FIX DE DISTANCIA DEL LÁSER ---
-            // Por defecto, XRRayInteractor solo llega a 30 metros. En mapas de Cesium, los nodos pueden estar a kilómetros.
-            // Esto aumenta el alcance del rayo a 50,000 metros para garantizar que llegue.
-            var rayInteractors = UnityEngine.Object.FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor>(UnityEngine.FindObjectsInactive.Include, UnityEngine.FindObjectsSortMode.None);
-            foreach (var ray in rayInteractors)
-            {
-                ray.maxRaycastDistance = 50000f;
-            }
+            // El fix de distancia del láser XR ahora se maneja en ForceXRLaserDistanceRoutine() continuamente.
 
             var georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
             if (georeference == null) return;
@@ -391,11 +432,23 @@ namespace HorizonFaser.UI
                         // Escala: Ajustar a gusto, probamos con 30f como base.
                         popObj.transform.localScale = new Vector3(30f, 30f, 30f); 
 
-                        // Material URP dinámico
-                        Texture2D popTex = Resources.Load<Texture2D>("Models/POP/Meshy_AI_pop_shelter_3d_1001095043_image-to-3d-texture");
+                        // Material URP dinámico con Normal Map
+                        string popBasePath = "Models/POP/Meshy_AI_pop_shelter_3d_1001095043_image-to-3d-texture";
+                        Texture2D popTex = Resources.Load<Texture2D>(popBasePath);
+                        Texture2D popNormalTex = Resources.Load<Texture2D>(popBasePath + "_normal");
+
                         Material popMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
                         if (popTex != null) popMat.mainTexture = popTex;
                         else popMat.color = popMaterial.color;
+
+                        if (popNormalTex != null)
+                        {
+                            popMat.SetTexture("_BumpMap", popNormalTex);
+                            popMat.EnableKeyword("_NORMALMAP");
+                        }
+                        
+                        popMat.SetFloat("_Metallic", 0.5f);
+                        popMat.SetFloat("_Smoothness", 0.3f); // Hormigón/Metal con poco brillo
 
                         foreach (var renderer in popObj.GetComponentsInChildren<Renderer>())
                         {
@@ -444,13 +497,23 @@ namespace HorizonFaser.UI
                             // Si lo ves muy grande, bájalo a 10f o 3f.
                             nvtObj.transform.localScale = new Vector3(30f, 30f, 30f); 
 
-                            // 2. Fix de Material para URP:
-                            // Los FBX traen material "Standard" que se ve negro/transparente en URP.
-                            // Creamos un material URP Lit y le asignamos la textura directamente por código.
-                            Texture2D baseTex = Resources.Load<Texture2D>("Models/Meshy_Ai_street_cabinet/Meshy_AI_street_cabinet_3d_1001093310_image-to-3d-texture");
+                            // Material URP dinámico
+                            string nvtBasePath = "Models/Meshy_Ai_street_cabinet/Meshy_AI_street_cabinet_3d_1001093310_image-to-3d-texture";
+                            Texture2D nvtTex = Resources.Load<Texture2D>(nvtBasePath);
+                            Texture2D nvtNormalTex = Resources.Load<Texture2D>(nvtBasePath + "_normal");
+
                             Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                            if (baseTex != null) urpMat.mainTexture = baseTex;
+                            if (nvtTex != null) urpMat.mainTexture = nvtTex;
                             else urpMat.color = Color.yellow; // Fallback visual
+
+                            if (nvtNormalTex != null)
+                            {
+                                urpMat.SetTexture("_BumpMap", nvtNormalTex);
+                                urpMat.EnableKeyword("_NORMALMAP");
+                            }
+                            
+                            urpMat.SetFloat("_Metallic", 0.6f); // El NVT suele ser de metal
+                            urpMat.SetFloat("_Smoothness", 0.4f);
 
                             // Aplicarlo a todas las mallas del FBX
                             foreach (var renderer in nvtObj.GetComponentsInChildren<Renderer>())

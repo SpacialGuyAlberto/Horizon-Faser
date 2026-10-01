@@ -13,7 +13,7 @@ namespace HorizonFaser.XR
     }
 
     [RequireComponent(typeof(XRSimpleInteractable))]
-    [RequireComponent(typeof(BoxCollider))]
+    // ELIMINADO: [RequireComponent(typeof(BoxCollider))] para evitar crear cajas invisibles gigantes
     public class NetworkNodeInteractable : MonoBehaviour
     {
         [Header("Node Data")]
@@ -33,25 +33,6 @@ namespace HorizonFaser.XR
         {
             _interactable = GetComponent<XRSimpleInteractable>();
             
-            // Reparación Automática del Collider:
-            // Si el Collider tiene tamaño 0,0,0, NUNCA funcionará el clic ni el rayo VR.
-            BoxCollider col = GetComponent<BoxCollider>();
-            if (col != null && col.size == Vector3.zero)
-            {
-                // Intentar ajustar el collider al tamaño del modelo 3D
-                MeshRenderer mr = GetComponentInChildren<MeshRenderer>();
-                if (mr != null)
-                {
-                    col.center = mr.transform.localPosition;
-                    col.size = mr.bounds.size;
-                }
-                else
-                {
-                    col.size = Vector3.one * 0.5f; // Tamaño por defecto si no hay malla
-                }
-                Debug.Log($"[Fix] Collider ajustado en {gameObject.name}");
-            }
-
             // Gestión de la Interfaz UI
             if (infoCardUI == null)
             {
@@ -69,8 +50,21 @@ namespace HorizonFaser.XR
 
         private void Start()
         {
-            // Forzamos ocultar la tarjeta. 
-            // Usamos un pequeño retraso (Invoke) para asegurar que si otro script la activó en Awake/Start, la volvamos a ocultar.
+            // Asegurarnos de que el Imán de Puntero exista siempre
+            if (XRPointerMagnet.Instance == null)
+            {
+                var magnet = FindObjectOfType<XRPointerMagnet>();
+                if (magnet == null)
+                {
+                    magnet = new GameObject("XRPointerMagnet").AddComponent<XRPointerMagnet>();
+                }
+                XRPointerMagnet.Instance = magnet;
+            }
+            
+            // Registrar este nodo en el sistema de Puntero Magnético
+            XRPointerMagnet.Instance.RegisterNode(this);
+
+            // Forzamos ocultar la tarjeta al iniciar
             Invoke(nameof(ForceHideUI), 0.1f);
         }
 
@@ -86,10 +80,7 @@ namespace HorizonFaser.XR
         {
             if (_interactable != null)
             {
-                // selectEntered es cuando haces CLIC (gatillo/trigger en VR)
                 _interactable.selectEntered.AddListener(OnXRSelected);
-                // Opcional: hoverEntered es cuando APUNTAS con el láser
-                // _interactable.hoverEntered.AddListener(OnXRSelected); 
             }
         }
 
@@ -122,22 +113,43 @@ namespace HorizonFaser.XR
         }
 
         /// <summary>
+        /// Expuesto para que sistemas personalizados de entrada (como XRPointerMagnet) 
+        /// puedan forzar el evento de clic sin depender de las colisiones del motor.
+        /// </summary>
+        public void ForceTrigger()
+        {
+            ShowInfoCard();
+        }
+
+        /// <summary>
         /// Helper estático para adjuntar este comportamiento a cualquier GameObject puramente desde código.
         /// Útil cuando instancias tus nodos (POPs, Nvts, Segmentos) dinámicamente.
         /// </summary>
         public static NetworkNodeInteractable AttachToNode(GameObject targetObj, NetworkNodeType type, string name, string details)
         {
+            // PREPARACIÓN DE COLLIDERS:
+            // Debe hacerse ANTES de añadir NetworkNodeInteractable, para que cuando 
+            // XRSimpleInteractable ejecute su Awake(), los colisionadores ya existan y los detecte.
+            if (type != NetworkNodeType.Segmento)
+            {
+                var oldBox = targetObj.GetComponent<BoxCollider>();
+                if (oldBox != null) Destroy(oldBox);
+
+                foreach (var mf in targetObj.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (mf.gameObject.GetComponent<Collider>() == null)
+                    {
+                        var mc = mf.gameObject.AddComponent<MeshCollider>();
+                        mc.convex = false; 
+                    }
+                }
+            }
+
+            // AHORA añadimos el script interactivo (su Awake se ejecuta aquí)
             NetworkNodeInteractable interactable = targetObj.AddComponent<NetworkNodeInteractable>();
             interactable.nodeType = type;
             interactable.nodeName = name;
             interactable.nodeDetails = details;
-            
-            // Ajustamos el BoxCollider por defecto para que sea un poco más grande si no hay uno configurado
-            BoxCollider col = targetObj.GetComponent<BoxCollider>();
-            if (col != null && col.size == Vector3.zero)
-            {
-                col.size = Vector3.one * 0.5f;
-            }
 
             return interactable;
         }

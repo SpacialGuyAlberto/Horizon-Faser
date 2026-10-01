@@ -83,7 +83,7 @@ namespace HorizonFaser.UI
 
         private void Start()
         {
-            ApplyTailwindAesthetics();
+            ApplyMetaHorizonOSStyle();
             
             Camera mainCam = Camera.main;
             if (mainCam == null) mainCam = FindObjectOfType<Camera>();
@@ -159,7 +159,7 @@ namespace HorizonFaser.UI
             rt.sizeDelta = new Vector2(120, 50);
 
             var img = quitBtnObj.AddComponent<UnityEngine.UI.Image>();
-            img.color = new Color(0.8f, 0.1f, 0.1f, 0.9f); // Rojo
+            img.color = new Color(0.6f, 0.1f, 0.1f, 1f); // Rojo plano tipo Destructive Button
 
             var btn = quitBtnObj.AddComponent<Button>();
             btn.targetGraphic = img;
@@ -179,46 +179,91 @@ namespace HorizonFaser.UI
             tmp.alignment = TMPro.TextAlignmentOptions.Center;
         }
 
-
-        private void ApplyTailwindAesthetics()
+        private void ApplyMetaHorizonOSStyle()
         {
-            // Fondos oscuros elegantes (Slate-900 / Slate-800)
-            Color bgSlate900 = new Color(0.06f, 0.06f, 0.09f, 0.95f);
-            Color bgSlate800 = new Color(0.12f, 0.13f, 0.18f, 1f);
-            Color textWhite = new Color(0.95f, 0.95f, 0.95f, 1f);
-            Color brandIndigo = new Color(0.39f, 0.22f, 0.94f, 1f); // bg-indigo-600
+            // Colores extraídos exactamente de la captura de pantalla de Meta Horizon OS
+            Color panelBackground = new Color(0.10f, 0.11f, 0.13f, 1f); // Gris carbón muy oscuro y plano (opaco)
+            Color primaryBlue = new Color(0.16f, 0.38f, 0.79f, 1f); // El azul "Primary Button" suave
+            Color secondaryGrey = new Color(0.23f, 0.24f, 0.27f, 1f); // Gris "Secondary Button" (para inputs)
+            Color textWhite = new Color(0.95f, 0.95f, 0.95f, 1f); // Blanco limpio
 
-            // Estilizar el panel principal si tiene imagen
+            // Cargar el sprite redondeado por defecto de Unity (para hacer el efecto "Pill/Bordes redondeados")
+            Sprite roundedSprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
+
+            // 1. Fondo principal plano (Sin bordes brillantes ni sombras)
             Image panel = GetComponent<Image>();
             if (panel != null)
             {
-                panel.color = bgSlate900;
+                panel.color = panelBackground;
+                if (roundedSprite != null) 
+                {
+                    panel.sprite = roundedSprite;
+                    panel.type = Image.Type.Sliced;
+                }
+                
+                // Limpiar cualquier efecto viejo
+                var outline = panel.gameObject.GetComponent<Outline>();
+                if (outline != null) Destroy(outline);
             }
 
-            // Estilizar Inputs
+            // 2. Inputs usando el estilo "Secondary Button" de Meta
             TMP_InputField[] inputs = { emailInput, passwordInput };
             foreach (var input in inputs)
             {
                 if (input != null && input.targetGraphic != null)
                 {
-                    input.targetGraphic.color = bgSlate800; // fondo de los inputs
+                    Image inputImg = input.targetGraphic as Image;
+                    if (inputImg != null)
+                    {
+                        inputImg.color = secondaryGrey;
+                        if (roundedSprite != null)
+                        {
+                            inputImg.sprite = roundedSprite;
+                            inputImg.type = Image.Type.Sliced;
+                            inputImg.pixelsPerUnitMultiplier = 3f; // Multiplicador para redondear más los bordes
+                        }
+                    }
+                    
+                    var inputOutline = input.targetGraphic.gameObject.GetComponent<Outline>();
+                    if (inputOutline != null) Destroy(inputOutline);
+
                     if (input.textComponent != null) input.textComponent.color = textWhite;
-                    if (input.placeholder != null) input.placeholder.color = new Color(0.5f, 0.5f, 0.6f, 1f); // gris tenue
+                    if (input.placeholder != null) input.placeholder.color = new Color(0.6f, 0.6f, 0.6f, 1f); 
                 }
             }
 
-            // Estilizar Botón de Login
+            // 3. Botón de Login estilo "Primary Button" de Meta
             if (loginButton != null && loginButton.targetGraphic != null)
             {
-                loginButton.targetGraphic.color = brandIndigo;
+                Image btnImg = loginButton.targetGraphic as Image;
+                if (btnImg != null)
+                {
+                    btnImg.color = primaryBlue;
+                    if (roundedSprite != null)
+                    {
+                        btnImg.sprite = roundedSprite;
+                        btnImg.type = Image.Type.Sliced;
+                        btnImg.pixelsPerUnitMultiplier = 2f; // Redondeo tipo Pill
+                    }
+                }
+                
+                // Los botones de Meta Horizon OS en esa pantalla son planos, sin sombra
+                var btnShadow = loginButton.gameObject.GetComponent<Shadow>();
+                if (btnShadow != null) Destroy(btnShadow);
+
                 var btnText = loginButton.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null) btnText.color = textWhite;
+                if (btnText != null) 
+                {
+                    btnText.color = textWhite;
+                    // No negrita pesada, la tipografía de Meta es bastante limpia
+                    btnText.fontStyle = FontStyles.Normal;
+                }
             }
 
             // Texto de estado
             if (statusText != null)
             {
-                statusText.color = new Color(0.6f, 0.4f, 1f, 1f); // indigo claro
+                statusText.color = new Color(0.7f, 0.7f, 0.7f, 1f); 
             }
         }
 
