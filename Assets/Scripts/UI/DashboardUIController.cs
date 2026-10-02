@@ -252,10 +252,35 @@ namespace HorizonFaser.UI
             {
                 if (segment.Geometry == null || segment.Geometry.Count < 2) continue;
 
+                // PRE-CALCULAR INCLINACIONES (Ángulo entre vectores consecutivos)
+                List<Vector3> tempPositions = new List<Vector3>();
+                foreach (var p in segment.Geometry)
+                {
+                    GameObject tempAnchor = new GameObject("TempAnchor");
+                    tempAnchor.transform.SetParent(segmentsParent.transform, false);
+                    var globeAnchor = tempAnchor.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
+                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, 0);
+                    tempPositions.Add(tempAnchor.transform.position);
+                    Destroy(tempAnchor); // Destruir tras leer la posición local
+                }
+
+                float totalInclination = 0f;
+                float[] stepInclinations = new float[segment.Geometry.Count - 1];
+                
+                for (int i = 0; i < tempPositions.Count - 2; i++)
+                {
+                    Vector3 v1 = (tempPositions[i+1] - tempPositions[i]).normalized;
+                    Vector3 v2 = (tempPositions[i+2] - tempPositions[i+1]).normalized;
+                    float angle = Vector3.Angle(v1, v2);
+                    stepInclinations[i+1] = angle;
+                    totalInclination += angle;
+                }
+
                 for (int i = 0; i < segment.Geometry.Count - 1; i++)
                 {
                     var pA = segment.Geometry[i];
                     var pB = segment.Geometry[i+1];
+                    float currentInclination = stepInclinations[i];
 
                     // 1. Crear un ancla para el Punto A
                     GameObject anchorObjA = new GameObject($"Seg_{segment.Id}_A_{i}");
@@ -371,11 +396,12 @@ namespace HorizonFaser.UI
                     connector.Thickness = 0.5f; // Medio metro de grosor para que se vea bien desde lejos
                     
                     // --- NUESTRO SCRIPT DE INTERACCIÓN ---
+                    string inclinacionStr = (i == 0) ? "N/A (Inicio)" : $"{currentInclination:F1}°";
                     HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
                         cyl, 
                         HorizonFaser.XR.NetworkNodeType.Segmento, 
                         $"Segmento {segment.Id}", 
-                        $"Longitud aproximada: {distance:F1}m\nDesde: {pA.Latitude:F5}, {pA.Longitude:F5}"
+                        $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°"
                     );
                     
                     totalLines++;
