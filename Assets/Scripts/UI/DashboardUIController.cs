@@ -403,6 +403,63 @@ namespace HorizonFaser.UI
                         $"Segmento {segment.Id}", 
                         $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°"
                     );
+
+                    // --- AÑADIR ICONO DE EXCAVACIÓN / PALA ---
+                    bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 
+                                      (segment.WorkType.IndexOf("Excavat", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                       segment.WorkType.IndexOf("Trench", StringComparison.OrdinalIgnoreCase) >= 0);
+                                       
+                    // Solo ponemos 1 pala en el medio de TODO el segmento para no saturar visualmente
+                    if (isExcavation && (i == segment.Geometry.Count / 2)) 
+                    {
+                        double midLat = (pA.Latitude + pB.Latitude) / 2.0;
+                        double midLon = (pA.Longitude + pB.Longitude) / 2.0;
+
+                        GameObject shovelWrapper = new GameObject($"Shovel_{segment.Id}");
+                        shovelWrapper.transform.SetParent(segmentsParent.transform, false);
+                        var shovelAnchor = shovelWrapper.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
+                        // Lo bajamos a 30 metros para que no quede fuera de la vista de la cámara
+                        shovelAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(midLon, midLat, 30.0); 
+                        
+                        GameObject shovelPrefab = Resources.Load<GameObject>("Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture");
+                        if (shovelPrefab != null)
+                        {
+                            GameObject sVis = UnityEngine.Object.Instantiate(shovelPrefab);
+                            sVis.transform.SetParent(shovelWrapper.transform, false);
+                            // Escala ajustada a un tamaño muy grande pero visible (evitando culling de la cámara)
+                            sVis.transform.localScale = new Vector3(300f, 300f, 300f); 
+                            
+                            // Restaurar la textura original pero activar Alpha Clipping (Cutout)
+                            // Esto eliminará el cubo transparente/mosaico que rodeaba a la pala
+                            string shovelPath = "Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture";
+                            Texture2D sTex = Resources.Load<Texture2D>(shovelPath);
+
+                            Material sMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                            if (sTex != null) sMat.mainTexture = sTex;
+                            
+                            // Activar Alpha Test para que los bordes del bloque desaparezcan
+                            sMat.SetFloat("_AlphaClip", 1.0f);
+                            sMat.EnableKeyword("_ALPHATEST_ON");
+                            // IMPORTANTE: Un valor muy bajo (0.05f) evita que la pala entera desaparezca de lejos por el MipMapping
+                            sMat.SetFloat("_Cutoff", 0.05f); 
+                            
+                            sMat.SetFloat("_Metallic", 0.0f);
+                            sMat.SetFloat("_Smoothness", 0.1f);
+                            
+                            foreach (var r in sVis.GetComponentsInChildren<Renderer>())
+                            {
+                                r.material = sMat;
+                            }
+                            
+                            // Hacer que la pala rote lentamente para llamar la atención
+                            var rotator = shovelWrapper.AddComponent<IconRotator>();
+
+                            // Añadir escalador dinámico basado en la mirada (Gaze)
+                            var gazeScaler = sVis.AddComponent<GazeScaler>();
+                            gazeScaler.baseScale = new Vector3(300f, 300f, 300f); 
+                            gazeScaler.hoverScale = new Vector3(1000f, 1000f, 1000f); 
+                        }
+                    }
                     
                     totalLines++;
                 }
@@ -948,6 +1005,52 @@ namespace HorizonFaser.UI
                 _positioned = true;
                 Debug.Log($"[Cesium] Nodo '{gameObject.name}' posicionado correctamente.");
             }
+        }
+    }
+
+    /// <summary>
+    /// Utilidad simple para hacer que el icono (como la pala) rote sobre su propio eje.
+    /// </summary>
+    public class IconRotator : MonoBehaviour
+    {
+        public float rotationSpeed = 30f;
+        
+        void Update()
+        {
+            // Rota sobre el eje Y global/local suavemente
+            transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.Self);
+        }
+    }
+
+    /// <summary>
+    /// Escala dinámicamente un objeto cuando el usuario lo mira (basado en la dirección de la cámara).
+    /// </summary>
+    public class GazeScaler : MonoBehaviour
+    {
+        public Vector3 baseScale = new Vector3(300f, 300f, 300f);
+        public Vector3 hoverScale = new Vector3(1000f, 1000f, 1000f);
+        public float scaleSpeed = 8f;
+        public float lookThreshold = 0.96f; // Aprox 15 grados de cono de visión
+
+        private Transform _cameraTransform;
+
+        void Start()
+        {
+            if (Camera.main != null) _cameraTransform = Camera.main.transform;
+            transform.localScale = baseScale;
+        }
+
+        void Update()
+        {
+            if (_cameraTransform == null) return;
+
+            Vector3 toTarget = (transform.position - _cameraTransform.position).normalized;
+            float dot = Vector3.Dot(_cameraTransform.forward, toTarget);
+
+            // Si el dot product es mayor al threshold, estamos mirando hacia el objeto
+            Vector3 targetScale = (dot > lookThreshold) ? hoverScale : baseScale;
+            
+            transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * scaleSpeed);
         }
     }
 }
