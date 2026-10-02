@@ -4,14 +4,6 @@ using System.Collections.Generic;
 namespace HorizonFaser.Models
 {
     [Serializable]
-    public class GeometryPoint
-    {
-        public double latitude;
-        public double longitude;
-        public double elevation;
-    }
-
-    [Serializable]
     public abstract class UtilityLine
     {
         public long id;
