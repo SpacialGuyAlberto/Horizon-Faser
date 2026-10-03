@@ -20,5 +20,6 @@ namespace HorizonFaser.Repositories
         Task<List<Pop>> FetchPopsByClusterIdAsync(long clusterId);
         Task<bool> UpdateSegmentStateAsync(long segmentId, WorkflowState newState);
         Task<bool> ReportIncidentAsync(IncidentReport incident);
+        Task<List<UtilityLine>> FetchExternalUtilitiesAsync();
     }
 }

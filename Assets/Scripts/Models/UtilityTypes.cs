@@ -9,7 +9,7 @@ namespace HorizonFaser.Models
         public long id;
         public string utilityType;
         public List<GeometryPoint> geometry;
-        public double depth;
+        public double? depth;
         public string operatorName;
         public string contactPhone;
         public string hazardLevel;
@@ -21,7 +21,7 @@ namespace HorizonFaser.Models
     {
         public string pipeType;
         public string material;
-        public int diameterMm;
+        public int? diameterMm;
         public string pressureLevel;
 
         public WaterPipe() { utilityType = "WATER"; }
@@ -40,9 +40,9 @@ namespace HorizonFaser.Models
     public class ElectricityCable : UtilityLine
     {
         public string voltageCategory;
-        public int voltageValue;
+        public int? voltageValue;
         public string shieldingType;
-        public int numberOfCores;
+        public int? numberOfCores;
 
         public ElectricityCable() { utilityType = "ELECTRICITY"; }
     }
