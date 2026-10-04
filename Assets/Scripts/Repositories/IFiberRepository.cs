@@ -21,5 +21,6 @@ namespace HorizonFaser.Repositories
         Task<bool> UpdateSegmentStateAsync(long segmentId, WorkflowState newState);
         Task<bool> ReportIncidentAsync(IncidentReport incident);
         Task<List<UtilityLine>> FetchExternalUtilitiesAsync();
+        Task<List<FencingPlan>> FetchFencingPlansAsync(long segmentId);
     }
 }

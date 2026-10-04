@@ -476,6 +476,9 @@ namespace HorizonFaser.UI
                     
                     totalLines++;
                 }
+
+                // Render Fencing Plan for this segment
+                RenderSegmentFencingAsync(segment, segmentsParent);
             }
             Debug.Log($"[Cesium] Segmentos renderizados con éxito: {totalLines} líneas creadas dinámicamente.");
 
@@ -489,6 +492,141 @@ namespace HorizonFaser.UI
 
             // Ocultar el Canvas en lugar de destruirlo para que los métodos async (Pops y NVTs) no exploten.
             // gameObject.SetActive(false); // Eliminado para no romper RenderUtilitiesCesium que viene después.
+        }
+
+        private async void RenderSegmentFencingAsync(HorizonFaser.Models.QuarkBauSegment segment, GameObject parent)
+        {
+            var plans = await _repository.FetchFencingPlansAsync(segment.Id);
+            double baseElevation = 0;
+            if (segment.Geometry != null && segment.Geometry.Count > 0 && segment.Geometry[0].AltitudeZ.HasValue)
+            {
+                baseElevation = segment.Geometry[0].AltitudeZ.Value;
+            }
+
+            foreach (var plan in plans)
+            {
+                if (plan.elements == null) continue;
+                foreach (var element in plan.elements)
+                {
+                    string resourcePath = "";
+                    Vector3 scale = new Vector3(3000f, 3000f, 3000f); // Default scale (Cone)
+                    
+                    if (element.elementType == "CONE") 
+                        resourcePath = "Models/Fencing/cono/Meshy_AI_traffic_cone_leitkege_1004105134_image-to-3d-texture_fbx/Meshy_AI_traffic_cone_leitkege_1004105134_image-to-3d-texture";
+                    else if (element.elementType == "BARRIER")
+                    {
+                        resourcePath = "Models/Fencing/fence/Meshy_AI_construction_barrier__1004103924_image-to-3d-texture_fbx/Meshy_AI_construction_barrier__1004103924_image-to-3d-texture";
+                        scale = new Vector3(20000f, 20000f, 20000f);
+                    }
+                    else if (element.elementType == "TRAFFIC_LIGHT" || element.elementType == "SIGN_STOP")
+                    {
+                        resourcePath = "Models/Fencing/traffic-light/Meshy_AI_construction_traffic__1004104811_image-to-3d-texture_fbx/Meshy_AI_construction_traffic__1004104811_image-to-3d-texture";
+                        scale = new Vector3(10000f, 10000f, 10000f);
+                    }
+
+                    if (string.IsNullOrEmpty(resourcePath)) continue;
+
+                    GameObject prefab = Resources.Load<GameObject>(resourcePath);
+                    if (prefab != null)
+                    {
+                        GameObject fencingObj = Instantiate(prefab);
+                        fencingObj.name = $"Fencing_{element.elementType}_{element.id}";
+                        fencingObj.transform.SetParent(parent.transform, false);
+                        fencingObj.transform.localScale = scale;
+
+                        double finalLat = element.latitude;
+                        double finalLng = element.longitude;
+
+                        // Si las coordenadas son las hardcodeadas en Berlín o simplemente para asegurarnos:
+                        // Vamos a forzar que los elementos se dibujen ALREDEDOR del inicio del segmento.
+                        if (segment.Geometry != null && segment.Geometry.Count > 0)
+                        {
+                            // Calculamos un pequeño offset basado en su posición original respecto al centro de Berlín
+                            // O simplemente les damos un offset fijo para que no se superpongan
+                            double offsetLat = element.latitude - 52.5200;
+                            double offsetLng = element.longitude - 13.4050;
+                            
+                            finalLat = segment.Geometry[0].Latitude + offsetLat;
+                            finalLng = segment.Geometry[0].Longitude + offsetLng;
+                        }
+
+                        // Georeferencia con Cesium (levantamos 1 metro para evitar que se entierren en el terreno)
+                        var anchor = fencingObj.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
+                        anchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(finalLng, finalLat, baseElevation + 1.0);
+                        
+                        Debug.Log($"[Fencing] Creado {element.elementType} en lat:{finalLat} lng:{finalLng} z:{baseElevation + 1.0}");
+
+                        // --- APLICAR MATERIAL URP ---
+                        Texture2D tex = Resources.Load<Texture2D>(resourcePath);
+                        Texture2D texNormal = Resources.Load<Texture2D>(resourcePath + "_normal");
+                        Texture2D texMetallic = Resources.Load<Texture2D>(resourcePath + "_metallic");
+                        
+                        Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                        if (tex != null) urpMat.mainTexture = tex;
+                        else urpMat.color = Color.yellow; // Fallback
+
+                        if (texNormal != null)
+                        {
+                            urpMat.SetTexture("_BumpMap", texNormal);
+                            urpMat.EnableKeyword("_NORMALMAP");
+                        }
+                        if (texMetallic != null)
+                        {
+                            urpMat.SetTexture("_MetallicGlossMap", texMetallic);
+                            urpMat.SetFloat("_Metallic", 1f); // Use map
+                            urpMat.SetFloat("_Smoothness", 0.5f);
+                        }
+
+                        int rendererCount = 0;
+                        Bounds bounds = new Bounds();
+                        bool hasBounds = false;
+
+                        foreach (var renderer in fencingObj.GetComponentsInChildren<Renderer>())
+                        {
+                            renderer.material = urpMat;
+                            rendererCount++;
+                            if (!hasBounds)
+                            {
+                                bounds = renderer.bounds;
+                                hasBounds = true;
+                            }
+                            else
+                            {
+                                bounds.Encapsulate(renderer.bounds);
+                            }
+                        }
+
+                        Debug.Log($"[Fencing] {element.elementType} tiene {rendererCount} renderers. Tamaño real (bounds): {bounds.size.x} x {bounds.size.y} x {bounds.size.z}");
+
+                        // --- INTERACCIÓN XR (Agarre) ---
+                        // Añadimos Rigidbody necesario para XRGrabInteractable
+                        Rigidbody rb = fencingObj.AddComponent<Rigidbody>();
+                        rb.useGravity = false;
+                        rb.isKinematic = true; // Mantenerlo fijo al globo hasta que lo agarren
+
+                        // Añadimos BoxCollider genérico
+                        BoxCollider col = fencingObj.AddComponent<BoxCollider>();
+                        col.size = new Vector3(1f, 2f, 1f); // Aproximado para poder agarrarlo bien con la mano/láser
+
+                        // Componente de Interacción XR
+                        var grabInteractable = fencingObj.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+                        grabInteractable.movementType = UnityEngine.XR.Interaction.Toolkit.Interactables.XRBaseInteractable.MovementType.Kinematic;
+                        
+                        // Permitimos que lo mueva para reubicarlo.
+                        grabInteractable.selectEntered.AddListener((args) => {
+                            Debug.Log($"[Fencing] Agarrando {element.elementType}");
+                        });
+                        grabInteractable.selectExited.AddListener((args) => {
+                            Debug.Log($"[Fencing] Soltando {element.elementType} - Nueva Coordenada: {anchor.longitudeLatitudeHeight.x}, {anchor.longitudeLatitudeHeight.y}");
+                            // TODO: Llamar a la API para actualizar la nueva lat/lon del elemento.
+                        });
+                    }
+                    else
+                    {
+                        Debug.LogError($"[Fencing] No se pudo cargar el prefab en la ruta: {resourcePath}");
+                    }
+                }
+            }
         }
 
         private void RenderPopsAndNvtsCesium(List<Cluster> clusters)

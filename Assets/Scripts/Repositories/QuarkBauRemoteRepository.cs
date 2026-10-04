@@ -219,5 +219,22 @@ namespace HorizonFaser.Repositories
             }
             return result;
         }
+        public async Task<List<HorizonFaser.Models.FencingPlan>> FetchFencingPlansAsync(long segmentId)
+        {
+            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/planning/fencing-plans/segment/{segmentId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<List<HorizonFaser.Models.FencingPlan>>(json);
+                }
+                catch (System.Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"[QuarkBauRemoteRepository] Error parsing FencingPlans JSON: {ex.Message}\nRaw JSON: {json}");
+                }
+            }
+            return new List<HorizonFaser.Models.FencingPlan>();
+        }
     }
 }
