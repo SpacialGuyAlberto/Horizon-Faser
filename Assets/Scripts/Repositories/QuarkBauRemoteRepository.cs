@@ -199,11 +199,25 @@ namespace HorizonFaser.Repositories
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
             
-            // Assuming UtilityLine is abstract, we might need a custom JsonConverter if polymorphic, 
-            // but for now we'll deserialize as a list of WaterPipe or fallback to a custom JSON handling if NewtonSoft handles it.
-            // Newtonsoft JSON handles it automatically if TypeNameHandling is configured on the server,
-            // otherwise we'll deserialize to WaterPipe as fallback since the prompt implies rendering with water texture anyway.
-            return JsonConvert.DeserializeObject<List<WaterPipe>>(json).ConvertAll(x => (UtilityLine)x);
+            var jArray = Newtonsoft.Json.Linq.JArray.Parse(json);
+            var result = new List<UtilityLine>();
+            foreach (var item in jArray)
+            {
+                var type = item["utilityType"]?.ToString();
+                if (type == "ELECTRICITY")
+                {
+                    result.Add(item.ToObject<ElectricityCable>());
+                }
+                else if (type == "GAS")
+                {
+                    result.Add(item.ToObject<GasPipe>());
+                }
+                else
+                {
+                    result.Add(item.ToObject<WaterPipe>());
+                }
+            }
+            return result;
         }
     }
 }

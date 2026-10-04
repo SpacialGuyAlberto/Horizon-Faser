@@ -712,13 +712,34 @@ namespace HorizonFaser.UI
                     GameObject cyl = new GameObject($"Utility_{utility.id}_Line_{i}");
                     cyl.transform.SetParent(utilsParent.transform, true);
 
-                    // Load the water model
-                    GameObject waterPrefab = Resources.Load<GameObject>("Models/Water/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture_fbx/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture");
+                    GameObject prefabToLoad = null;
+                    string basePath = "";
+                    Color fallbackColor = utilMaterial.color;
+                    
+                    if (utility.utilityType == "ELECTRICITY")
+                    {
+                        basePath = "Models/Electricidad/Meshy_AI_holographic_conduit_3_1004094034_image-to-3d-texture_fbx/Meshy_AI_holographic_conduit_3_1004094034_image-to-3d-texture";
+                        prefabToLoad = Resources.Load<GameObject>(basePath);
+                        fallbackColor = new Color(1f, 0f, 0f, 1f); // Red for electricity
+                    }
+                    else if (utility.utilityType == "GAS")
+                    {
+                        basePath = "Models/Gas/Meshy_AI_long_toxic_green_pipe_1004101047_image-to-3d-texture_fbx/Meshy_AI_long_toxic_green_pipe_1004101047_image-to-3d-texture";
+                        prefabToLoad = Resources.Load<GameObject>(basePath);
+                        fallbackColor = new Color(0f, 1f, 0f, 1f); // Toxic Green for gas
+                    }
+                    else
+                    {
+                        basePath = "Models/Water/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture_fbx/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture";
+                        prefabToLoad = Resources.Load<GameObject>(basePath);
+                        fallbackColor = new Color(0f, 0.5f, 1f, 1f); // Blue for water
+                    }
+                    
                     GameObject utilVisual;
                     
-                    if (waterPrefab != null)
+                    if (prefabToLoad != null)
                     {
-                        utilVisual = UnityEngine.Object.Instantiate(waterPrefab);
+                        utilVisual = UnityEngine.Object.Instantiate(prefabToLoad);
                         utilVisual.transform.SetParent(cyl.transform, false);
                         
                         MeshFilter mf = utilVisual.GetComponentInChildren<MeshFilter>();
@@ -746,7 +767,6 @@ namespace HorizonFaser.UI
                             }
                         }
 
-                        string basePath = "Models/Water/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture_fbx/Meshy_AI_holographic_water_pip_1002204952_image-to-3d-texture";
                         Texture2D tex = Resources.Load<Texture2D>(basePath);
                         Texture2D normalTex = Resources.Load<Texture2D>(basePath + "_normal");
                         Texture2D metallicTex = Resources.Load<Texture2D>(basePath + "_metallic");
@@ -754,7 +774,7 @@ namespace HorizonFaser.UI
                         Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
                         
                         if (tex != null) urpMat.mainTexture = tex;
-                        else urpMat.color = utilMaterial.color;
+                        else urpMat.color = fallbackColor;
 
                         if (normalTex != null)
                         {

@@ -111,7 +111,7 @@ namespace HorizonFaser.UI
                         }
                         dashboardUI.SetActive(true);
                     }
-                    gameObject.SetActive(false); 
+                    try { gameObject.SetActive(false); } catch (System.Exception e) { Debug.LogWarning("Bypassed XR Raycaster bug: " + e.Message); }
                 }
                 else
                 {
@@ -125,7 +125,8 @@ namespace HorizonFaser.UI
                 
                 await Task.Delay(1500);
                 if (dashboardUI != null) dashboardUI.SetActive(true);
-                gameObject.SetActive(false);
+                
+                try { gameObject.SetActive(false); } catch (System.Exception e) { Debug.LogWarning("Bypassed XR Raycaster bug: " + e.Message); }
             }
             finally
             {
