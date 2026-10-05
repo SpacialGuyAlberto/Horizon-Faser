@@ -20,6 +20,7 @@ namespace HorizonFaser.XR
         [Header("Node Data")]
         public NetworkNodeType nodeType;
         public string nodeName = "Desconocido";
+        public long segmentId;
         
         [TextArea]
         public string nodeDetails = "Detalles del nodo...";
@@ -133,8 +134,8 @@ namespace HorizonFaser.XR
             if (infoCardUI != null)
             {
                 string typeStr = nodeType.ToString();
-                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, transform.position, assignedCrew, assignedMachine);
-                Debug.Log($"[NetworkNode] Clic/Interacción detectado en: {typeStr} - {nodeName}");
+                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, transform.position, assignedCrew, assignedMachine, segmentId);
+                Debug.Log($"[NetworkNode] Clic/Interacción detectado en: {typeStr} - {nodeName} (SegId: {segmentId})");
             }
         }
 
@@ -151,7 +152,7 @@ namespace HorizonFaser.XR
         /// Helper estático para adjuntar este comportamiento a cualquier GameObject puramente desde código.
         /// Útil cuando instancias tus nodos (POPs, Nvts, Segmentos) dinámicamente.
         /// </summary>
-        public static NetworkNodeInteractable AttachToNode(GameObject targetObj, NetworkNodeType type, string name, string details, Crew crew = null, Machine machine = null)
+        public static NetworkNodeInteractable AttachToNode(GameObject targetObj, NetworkNodeType type, string name, string details, Crew crew = null, Machine machine = null, long segmentId = 0)
         {
             // PREPARACIÓN DE COLLIDERS:
             // Debe hacerse ANTES de añadir NetworkNodeInteractable, para que cuando 
@@ -178,6 +179,7 @@ namespace HorizonFaser.XR
             interactable.nodeDetails = details;
             interactable.assignedCrew = crew;
             interactable.assignedMachine = machine;
+            interactable.segmentId = segmentId;
 
             return interactable;
         }

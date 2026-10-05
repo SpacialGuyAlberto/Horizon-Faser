@@ -221,7 +221,8 @@ namespace HorizonFaser.Renderers
                         $"Segmento {segment.Id}", 
                         $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°",
                         segmentCrew,
-                        segmentMachine
+                        segmentMachine,
+                        segment.Id
                     );
 
                     bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 
