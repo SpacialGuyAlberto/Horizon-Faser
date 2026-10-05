@@ -165,17 +165,16 @@ namespace HorizonFaser.UI
 
         private async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
         {
-            if (welcomeText != null) welcomeText.text = $"Cargando Segmentos del Proyecto {project.Id}...";
-            ClearList();
+            var canvas = GetComponent<Canvas>();
+            if (canvas != null) canvas.enabled = false;
+            
+            if (_listContainer != null) _listContainer.SetActive(false);
             
             var segments = await _repository.FetchProjectSegmentsByIdAsync(project.Id);
             if (segments == null || segments.Count == 0)
             {
-                if (welcomeText != null) welcomeText.text = "No hay segmentos.";
                 return;
             }
-
-            if (welcomeText != null) welcomeText.text = $"Renderizando {segments.Count} segmentos en Cesium...";
             
             _ = HorizonFaser.Renderers.SegmentRenderer.RenderSegmentsCesium(segments, GetComponent<CanvasGroup>(), FindObjectOfType<CesiumForUnity.CesiumGeoreference>(), _repository);
 

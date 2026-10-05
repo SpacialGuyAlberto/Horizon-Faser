@@ -187,11 +187,41 @@ namespace HorizonFaser.Renderers
                     connector.Thickness = 0.5f; 
                     
                     string inclinacionStr = (i == 0) ? "N/A (Inicio)" : $"{currentInclination:F1}°";
+                    
+                    HorizonFaser.Models.Crew segmentCrew = null;
+                    HorizonFaser.Models.Machine segmentMachine = null;
+
+                    if (segment.AssignedCrewId.HasValue)
+                    {
+                        // Mocking Crew and Machine data for demonstration since we only have the ID
+                        segmentCrew = new HorizonFaser.Models.Crew
+                        {
+                            Id = segment.AssignedCrewId.Value,
+                            Name = "Tiefbau Kolonne Alpha",
+                            ForemanName = "Hans Mueller",
+                            Size = 4,
+                            VehiclePlate = "B-QB 1024"
+                        };
+
+                        segmentMachine = new HorizonFaser.Models.Machine
+                        {
+                            Id = 1,
+                            SerialNumber = "BKH-993-X",
+                            Name = "Caterpillar 301.8",
+                            Type = "Mini Excavator",
+                            Status = "IN_USE",
+                            AssignedCrewId = segment.AssignedCrewId.Value
+                        };
+                        segmentCrew.AssignedMachines.Add(segmentMachine);
+                    }
+
                     HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
                         cyl, 
                         HorizonFaser.XR.NetworkNodeType.Segmento, 
                         $"Segmento {segment.Id}", 
-                        $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°"
+                        $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°",
+                        segmentCrew,
+                        segmentMachine
                     );
 
                     bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 

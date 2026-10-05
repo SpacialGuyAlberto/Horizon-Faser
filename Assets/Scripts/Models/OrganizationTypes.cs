@@ -63,5 +63,11 @@ namespace HorizonFaser.Models
         // Última ubicación registrada (opcional para rastreo en mapa)
         public double? LastLatitude = null;
         public double? LastLongitude = null;
+
+        // Nuevos campos traídos de monolith
+        public string ForemanName = "";
+        public int Size = 0;
+        public string VehiclePlate = "";
+        public List<Machine> AssignedMachines = new List<Machine>();
     }
 }
