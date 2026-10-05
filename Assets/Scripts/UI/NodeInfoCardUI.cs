@@ -88,6 +88,53 @@ namespace HorizonFaser.UI
             }
         }
 
+        private static void MakeGrabbable(GameObject canvasObj, Vector2 size)
+        {
+            BoxCollider col = canvasObj.AddComponent<BoxCollider>();
+            col.size = new Vector3(size.x, size.y, 50f); // 50f thickness to make it easily grabbable in VR
+            
+            Rigidbody rb = canvasObj.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            
+            try 
+            {
+                var grab = canvasObj.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+                grab.throwOnDetach = false;
+            } 
+            catch 
+            {
+                try 
+                {
+                    // Fallback to older XR Interaction Toolkit namespace
+                    var type = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.XRGrabInteractable, Unity.XR.Interaction.Toolkit");
+                    if (type != null)
+                    {
+                        var grabComponent = canvasObj.AddComponent(type);
+                        type.GetProperty("throwOnDetach")?.SetValue(grabComponent, false);
+                    }
+                } catch { }
+            }
+        }
+
+        private bool _isSmallSize = false;
+        public void ToggleSize()
+        {
+            _isSmallSize = !_isSmallSize;
+            if (_isSmallSize)
+            {
+                _baseScale = new Vector3(0.0012f, 0.0012f, 0.0012f);
+                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+            }
+            else
+            {
+                _baseScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
+                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+            }
+        }
+
         private static void SetLayerRecursively(GameObject obj, int newLayer)
         {
             if (null == obj) return;
@@ -476,6 +523,7 @@ namespace HorizonFaser.UI
             });
 
             SetLayerRecursively(canvasObj, 5); 
+            MakeGrabbable(canvasObj, canvasRT.sizeDelta);
             canvasObj.SetActive(false);
             return canvasObj;
         }
@@ -686,6 +734,7 @@ namespace HorizonFaser.UI
             });
 
             SetLayerRecursively(canvasObj, 5); 
+            MakeGrabbable(canvasObj, canvasRT.sizeDelta);
             canvasObj.SetActive(false);
             return canvasObj;
         }
@@ -943,6 +992,31 @@ namespace HorizonFaser.UI
             clBtnTextRT.anchorMin = Vector2.zero; clBtnTextRT.anchorMax = Vector2.one;
             clBtnTextRT.sizeDelta = Vector2.zero;
 
+            // 11. Scale Button
+            GameObject scaleBtnObj = new GameObject("ScaleMainCardBtn");
+            scaleBtnObj.transform.SetParent(bgObj.transform, false);
+            Image scaleBtnImg = scaleBtnObj.AddComponent<Image>();
+            scaleBtnImg.color = new Color(0.4f, 0.4f, 0.4f, 0.8f); // Gray
+            Button scBtn = scaleBtnObj.AddComponent<Button>();
+
+            RectTransform scBtnRT = scaleBtnObj.GetComponent<RectTransform>();
+            scBtnRT.anchorMin = new Vector2(1, 1); scBtnRT.anchorMax = new Vector2(1, 1);
+            scBtnRT.pivot = new Vector2(1, 1);
+            scBtnRT.anchoredPosition = new Vector2(-50, -10); // A la izquierda del botón de cerrar
+            scBtnRT.sizeDelta = new Vector2(30, 30);
+
+            GameObject scBtnTextObj = new GameObject("ScBtnText");
+            scBtnTextObj.transform.SetParent(scaleBtnObj.transform, false);
+            TextMeshProUGUI scBtnText = scBtnTextObj.AddComponent<TextMeshProUGUI>();
+            scBtnText.text = "S"; // S de Scale o Size
+            scBtnText.fontSize = 16;
+            scBtnText.fontStyle = FontStyles.Bold;
+            scBtnText.alignment = TextAlignmentOptions.Center;
+            scBtnText.color = Color.white;
+            RectTransform scBtnTextRT = scBtnTextObj.GetComponent<RectTransform>();
+            scBtnTextRT.anchorMin = Vector2.zero; scBtnTextRT.anchorMax = Vector2.one;
+            scBtnTextRT.sizeDelta = Vector2.zero;
+
             // 7. Ensamblar Script
             NodeInfoCardUI uiScript = canvasObj.AddComponent<NodeInfoCardUI>();
             uiScript.titleText = title;
@@ -958,9 +1032,11 @@ namespace HorizonFaser.UI
             mBtn.onClick.AddListener(uiScript.OnMachineryButtonClicked);
             pBtn.onClick.AddListener(uiScript.OnPermitButtonClicked);
             clBtn.onClick.AddListener(uiScript.HideCard);
+            scBtn.onClick.AddListener(uiScript.ToggleSize);
 
             // IMPORTANTE PARA XR: Asignar al layer 'UI' (5) para que los rayos interactúen correctamente
             SetLayerRecursively(canvasObj, 5);
+            MakeGrabbable(canvasObj, canvasRT.sizeDelta);
 
             canvasObj.SetActive(false);
             return uiScript;
