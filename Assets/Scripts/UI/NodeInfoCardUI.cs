@@ -48,6 +48,69 @@ namespace HorizonFaser.UI
 
         public static bool IsAnyCardOpen = false;
 
+        private static Sprite _roundedSprite;
+        private static Sprite _pillSprite;
+
+        public static Sprite GetRoundedSprite()
+        {
+            if (_roundedSprite != null) return _roundedSprite;
+            int size = 64;
+            int r = 16;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] pixels = new Color[size * size];
+            Color transparent = new Color(1,1,1,0);
+            for(int y=0; y<size; y++)
+            {
+                for(int x=0; x<size; x++)
+                {
+                    if(x < r && y < r && Vector2.Distance(new Vector2(x,y), new Vector2(r-1,r-1)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x > size-r && y < r && Vector2.Distance(new Vector2(x,y), new Vector2(size-r,r-1)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x < r && y > size-r && Vector2.Distance(new Vector2(x,y), new Vector2(r-1,size-r)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x > size-r && y > size-r && Vector2.Distance(new Vector2(x,y), new Vector2(size-r,size-r)) > r)
+                        pixels[y*size+x] = transparent;
+                    else
+                        pixels[y*size+x] = Color.white;
+                }
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            _roundedSprite = Sprite.Create(tex, new Rect(0,0,size,size), new Vector2(0.5f,0.5f), 100, 0, SpriteMeshType.FullRect, new Vector4(r,r,r,r));
+            return _roundedSprite;
+        }
+
+        public static Sprite GetPillSprite()
+        {
+            if (_pillSprite != null) return _pillSprite;
+            int size = 64;
+            int r = 32;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color[] pixels = new Color[size * size];
+            Color transparent = new Color(1,1,1,0);
+            for(int y=0; y<size; y++)
+            {
+                for(int x=0; x<size; x++)
+                {
+                    if(x < r && y < r && Vector2.Distance(new Vector2(x,y), new Vector2(r-1,r-1)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x > size-r && y < r && Vector2.Distance(new Vector2(x,y), new Vector2(size-r,r-1)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x < r && y > size-r && Vector2.Distance(new Vector2(x,y), new Vector2(r-1,size-r)) > r)
+                        pixels[y*size+x] = transparent;
+                    else if(x > size-r && y > size-r && Vector2.Distance(new Vector2(x,y), new Vector2(size-r,size-r)) > r)
+                        pixels[y*size+x] = transparent;
+                    else
+                        pixels[y*size+x] = Color.white;
+                }
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            _pillSprite = Sprite.Create(tex, new Rect(0,0,size,size), new Vector2(0.5f,0.5f), 100, 0, SpriteMeshType.FullRect, new Vector4(r,r,r,r));
+            return _pillSprite;
+        }
+
         private Vector3 _baseScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
         private float _currentAnimFactor = 0f;
         private Transform _cameraTransform;
@@ -427,9 +490,8 @@ namespace HorizonFaser.UI
             GameObject bgObj = new GameObject("PermitImage");
             bgObj.transform.SetParent(canvasObj.transform, false);
             RawImage bgImage = bgObj.AddComponent<RawImage>();
-            Texture2D tex = Resources.Load<Texture2D>("permit");
-            if (tex != null) bgImage.texture = tex;
-            else bgImage.color = Color.white;
+            // Use Meta dark background if texture not loaded yet
+            bgImage.color = new Color(0.11f, 0.11f, 0.12f, 0.95f);
             
             RectTransform bgRT = bgObj.GetComponent<RectTransform>();
             bgRT.anchorMin = new Vector2(0.5f, 1); bgRT.anchorMax = new Vector2(0.5f, 1);
@@ -456,7 +518,9 @@ namespace HorizonFaser.UI
             GameObject openBtnObj = new GameObject("OpenPdfButton");
             openBtnObj.transform.SetParent(canvasObj.transform, false);
             Image openBtnImg = openBtnObj.AddComponent<Image>();
-            openBtnImg.color = new Color(0.2f, 0.5f, 0.8f, 1f); // Blue
+            openBtnImg.sprite = GetPillSprite();
+            openBtnImg.type = Image.Type.Sliced;
+            openBtnImg.color = new Color(0f, 0.48f, 1f, 1f); // Meta Blue
             Button openBtn = openBtnObj.AddComponent<Button>();
             openBtnObj.SetActive(false); // <--- HIDE IT INITIALLY
             
@@ -498,7 +562,9 @@ namespace HorizonFaser.UI
             GameObject btnObj = new GameObject("CloseButton");
             btnObj.transform.SetParent(canvasObj.transform, false);
             Image btnImg = btnObj.AddComponent<Image>();
-            btnImg.color = new Color(0.8f, 0.2f, 0.2f, 1f);
+            btnImg.sprite = GetPillSprite();
+            btnImg.type = Image.Type.Sliced;
+            btnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button btn = btnObj.AddComponent<Button>();
             RectTransform btnRT = btnObj.GetComponent<RectTransform>();
             btnRT.anchorMin = new Vector2(0.5f, 0); btnRT.anchorMax = new Vector2(0.5f, 0);
@@ -658,7 +724,9 @@ namespace HorizonFaser.UI
             GameObject bgObj = new GameObject("Background");
             bgObj.transform.SetParent(canvasObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
-            bgImage.color = new Color(0.05f, 0.06f, 0.08f, 0.98f);
+            bgImage.sprite = GetRoundedSprite();
+            bgImage.type = Image.Type.Sliced;
+            bgImage.color = new Color(0.11f, 0.11f, 0.12f, 0.98f); // Meta Dark Gray
             RectTransform bgRT = bgObj.GetComponent<RectTransform>();
             bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
             bgRT.sizeDelta = Vector2.zero;
@@ -709,7 +777,9 @@ namespace HorizonFaser.UI
             GameObject btnObj = new GameObject("CloseButton");
             btnObj.transform.SetParent(bgObj.transform, false);
             Image btnImg = btnObj.AddComponent<Image>();
-            btnImg.color = new Color(0.8f, 0.2f, 0.2f, 1f);
+            btnImg.sprite = GetPillSprite();
+            btnImg.type = Image.Type.Sliced;
+            btnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button btn = btnObj.AddComponent<Button>();
             RectTransform btnRT = btnObj.GetComponent<RectTransform>();
             btnRT.anchorMin = new Vector2(0.5f, 0); btnRT.anchorMax = new Vector2(0.5f, 0);
@@ -809,11 +879,13 @@ namespace HorizonFaser.UI
             RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
             canvasRT.sizeDelta = new Vector2(550, 220); // Más ancho, proporciones cinemáticas
 
-            // 2. Main Background (Glassmorphism oscuro)
+            // 2. Main Background (Meta Glassmorphism oscuro)
             GameObject bgObj = new GameObject("Background");
             bgObj.transform.SetParent(canvasObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
-            bgImage.color = new Color(0.08f, 0.09f, 0.11f, 0.95f); // Gris muy oscuro, casi negro, elegante
+            bgImage.sprite = GetRoundedSprite();
+            bgImage.type = Image.Type.Sliced;
+            bgImage.color = new Color(0.11f, 0.11f, 0.12f, 0.95f); // Meta Dark Gray
             
             RectTransform bgRT = bgObj.GetComponent<RectTransform>();
             bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
@@ -824,21 +896,18 @@ namespace HorizonFaser.UI
             shadow.effectColor = new Color(0, 0, 0, 0.5f);
             shadow.effectDistance = new Vector2(0, -5);
 
-            // 3. Accent Line (Línea decorativa a la izquierda)
+            // 3. Accent Line (Removido para estilo Meta, se mantiene el objeto apagado)
             GameObject accentObj = new GameObject("AccentLine");
             accentObj.transform.SetParent(bgObj.transform, false);
             Image accent = accentObj.AddComponent<Image>();
-            accent.color = Color.white;
-            
-            RectTransform accentRT = accentObj.GetComponent<RectTransform>();
-            accentRT.anchorMin = new Vector2(0, 0); accentRT.anchorMax = new Vector2(0, 1);
-            accentRT.pivot = new Vector2(0, 0.5f);
-            accentRT.sizeDelta = new Vector2(6, 0); // 6 pixeles de grosor
+            accent.gameObject.SetActive(false); // Oculto
 
             // 4. Badge del Tipo (Pill shape background)
             GameObject badgeObj = new GameObject("BadgeBg");
             badgeObj.transform.SetParent(bgObj.transform, false);
             Image badge = badgeObj.AddComponent<Image>();
+            badge.sprite = GetPillSprite();
+            badge.type = Image.Type.Sliced;
             badge.color = new Color(1, 1, 1, 0.15f);
             
             RectTransform badgeRT = badgeObj.GetComponent<RectTransform>();
@@ -896,7 +965,9 @@ namespace HorizonFaser.UI
             GameObject crewBtnObj = new GameObject("CrewButton");
             crewBtnObj.transform.SetParent(bgObj.transform, false);
             Image crewBtnImg = crewBtnObj.AddComponent<Image>();
-            crewBtnImg.color = new Color(0.1f, 0.6f, 0.2f, 1f); // Green
+            crewBtnImg.sprite = GetPillSprite();
+            crewBtnImg.type = Image.Type.Sliced;
+            crewBtnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button cBtn = crewBtnObj.AddComponent<Button>();
 
             RectTransform cBtnRT = crewBtnObj.GetComponent<RectTransform>();
@@ -921,7 +992,9 @@ namespace HorizonFaser.UI
             GameObject machBtnObj = new GameObject("MachineryButton");
             machBtnObj.transform.SetParent(bgObj.transform, false);
             Image machBtnImg = machBtnObj.AddComponent<Image>();
-            machBtnImg.color = new Color(0.8f, 0.4f, 0.1f, 1f); // Orange
+            machBtnImg.sprite = GetPillSprite();
+            machBtnImg.type = Image.Type.Sliced;
+            machBtnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button mBtn = machBtnObj.AddComponent<Button>();
 
             RectTransform mBtnRT = machBtnObj.GetComponent<RectTransform>();
@@ -946,7 +1019,9 @@ namespace HorizonFaser.UI
             GameObject permitBtnObj = new GameObject("PermitButton");
             permitBtnObj.transform.SetParent(bgObj.transform, false);
             Image permitBtnImg = permitBtnObj.AddComponent<Image>();
-            permitBtnImg.color = new Color(0.2f, 0.5f, 0.8f, 1f); // Blue
+            permitBtnImg.sprite = GetPillSprite();
+            permitBtnImg.type = Image.Type.Sliced;
+            permitBtnImg.color = new Color(0f, 0.48f, 1f, 1f); // Meta Blue
             Button pBtn = permitBtnObj.AddComponent<Button>();
 
             RectTransform pBtnRT = permitBtnObj.GetComponent<RectTransform>();
@@ -971,7 +1046,9 @@ namespace HorizonFaser.UI
             GameObject closeBtnObj = new GameObject("CloseMainCardBtn");
             closeBtnObj.transform.SetParent(bgObj.transform, false);
             Image closeBtnImg = closeBtnObj.AddComponent<Image>();
-            closeBtnImg.color = new Color(0.8f, 0.2f, 0.2f, 0.8f); // Red
+            closeBtnImg.sprite = GetRoundedSprite();
+            closeBtnImg.type = Image.Type.Sliced;
+            closeBtnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button clBtn = closeBtnObj.AddComponent<Button>();
 
             RectTransform clBtnRT = closeBtnObj.GetComponent<RectTransform>();
@@ -987,7 +1064,7 @@ namespace HorizonFaser.UI
             clBtnText.fontSize = 18;
             clBtnText.fontStyle = FontStyles.Bold;
             clBtnText.alignment = TextAlignmentOptions.Center;
-            clBtnText.color = Color.white;
+            clBtnText.color = new Color(0.8f, 0.8f, 0.8f, 1f);
             RectTransform clBtnTextRT = clBtnTextObj.GetComponent<RectTransform>();
             clBtnTextRT.anchorMin = Vector2.zero; clBtnTextRT.anchorMax = Vector2.one;
             clBtnTextRT.sizeDelta = Vector2.zero;
@@ -996,7 +1073,9 @@ namespace HorizonFaser.UI
             GameObject scaleBtnObj = new GameObject("ScaleMainCardBtn");
             scaleBtnObj.transform.SetParent(bgObj.transform, false);
             Image scaleBtnImg = scaleBtnObj.AddComponent<Image>();
-            scaleBtnImg.color = new Color(0.4f, 0.4f, 0.4f, 0.8f); // Gray
+            scaleBtnImg.sprite = GetRoundedSprite();
+            scaleBtnImg.type = Image.Type.Sliced;
+            scaleBtnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f); // Meta Gray
             Button scBtn = scaleBtnObj.AddComponent<Button>();
 
             RectTransform scBtnRT = scaleBtnObj.GetComponent<RectTransform>();
@@ -1012,7 +1091,7 @@ namespace HorizonFaser.UI
             scBtnText.fontSize = 16;
             scBtnText.fontStyle = FontStyles.Bold;
             scBtnText.alignment = TextAlignmentOptions.Center;
-            scBtnText.color = Color.white;
+            scBtnText.color = new Color(0.8f, 0.8f, 0.8f, 1f);
             RectTransform scBtnTextRT = scBtnTextObj.GetComponent<RectTransform>();
             scBtnTextRT.anchorMin = Vector2.zero; scBtnTextRT.anchorMax = Vector2.one;
             scBtnTextRT.sizeDelta = Vector2.zero;
