@@ -108,10 +108,15 @@ namespace HorizonFaser.XR
         }
 
         private float _lastClickTime = 0f;
+        private static GameObject _currentPermitQuad;
 
         private void ShowInfoCard()
         {
             float timeSinceLastClick = Time.time - _lastClickTime;
+            
+            // Ignorar eventos duplicados disparados en el mismo milisegundo por el motor
+            if (timeSinceLastClick < 0.1f) return;
+
             _lastClickTime = Time.time;
 
             if (NodeInfoCardUI.IsAnyCardOpen) 

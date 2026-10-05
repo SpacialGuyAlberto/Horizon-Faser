@@ -19,6 +19,7 @@ namespace HorizonFaser.UI
         public Image badgeBg;
         public Button crewButton;
         public Button machineryButton;
+        public Button permitButton;
 
         public static bool IsAnyCardOpen = false;
 
@@ -96,10 +97,14 @@ namespace HorizonFaser.UI
             {
                 machineryButton.gameObject.SetActive(machine != null);
             }
+            if (permitButton != null)
+            {
+                permitButton.gameObject.SetActive(nodeType.Contains("Segmento") || nodeType.Contains("SEGMENTO"));
+            }
 
             // Reset size
             RectTransform canvasRT = GetComponent<RectTransform>();
-            if (canvasRT != null) canvasRT.sizeDelta = new Vector2(450, 220);
+            if (canvasRT != null) canvasRT.sizeDelta = new Vector2(550, 220);
             if (detailsText != null)
             {
                 RectTransform detailsRT = detailsText.GetComponent<RectTransform>();
@@ -155,6 +160,95 @@ namespace HorizonFaser.UI
             info += $"<color=#cccccc><b>Estatus:</b></color> {AssignedMachine.Status}\n";
 
             OpenDetailsPopup("DETALLES DE MAQUINARIA", info, "excavadora");
+        }
+
+        private static GameObject _permitPopup;
+
+        public void OnPermitButtonClicked()
+        {
+            if (_permitPopup == null)
+            {
+                _permitPopup = CreatePermitPopup();
+            }
+            _permitPopup.SetActive(true);
+
+            if (Camera.main != null)
+            {
+                Vector3 camPos = Camera.main.transform.position;
+                Vector3 forward = Camera.main.transform.forward;
+                
+                Vector3 horizontalForward = new Vector3(forward.x, 0, forward.z);
+                if (horizontalForward.sqrMagnitude > 0.01f)
+                    horizontalForward.Normalize();
+                else
+                    horizontalForward = forward.normalized;
+                
+                _permitPopup.transform.position = camPos + horizontalForward * 1.5f;
+                Vector3 toCamera = _permitPopup.transform.position - camPos;
+                _permitPopup.transform.rotation = Quaternion.LookRotation(toCamera);
+            }
+        }
+
+        private GameObject CreatePermitPopup()
+        {
+            GameObject canvasObj = new GameObject("Permit_Popup");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+            
+            try { canvasObj.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>(); } catch { }
+
+            if (Camera.main != null) canvas.worldCamera = Camera.main;
+
+            RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+            canvasRT.sizeDelta = new Vector2(400, 620); // Suficiente espacio para la imagen y el botón
+            canvasObj.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+
+            // Background Image
+            GameObject bgObj = new GameObject("PermitImage");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+            RawImage bgImage = bgObj.AddComponent<RawImage>();
+            Texture2D tex = Resources.Load<Texture2D>("permit");
+            if (tex != null) bgImage.texture = tex;
+            else bgImage.color = Color.white;
+            
+            RectTransform bgRT = bgObj.GetComponent<RectTransform>();
+            bgRT.anchorMin = new Vector2(0.5f, 1); bgRT.anchorMax = new Vector2(0.5f, 1);
+            bgRT.pivot = new Vector2(0.5f, 1);
+            bgRT.sizeDelta = new Vector2(400, 560);
+            bgRT.anchoredPosition = Vector2.zero;
+
+            // Close Button
+            GameObject btnObj = new GameObject("CloseButton");
+            btnObj.transform.SetParent(canvasObj.transform, false);
+            Image btnImg = btnObj.AddComponent<Image>();
+            btnImg.color = new Color(0.8f, 0.2f, 0.2f, 1f);
+            Button btn = btnObj.AddComponent<Button>();
+            RectTransform btnRT = btnObj.GetComponent<RectTransform>();
+            btnRT.anchorMin = new Vector2(0.5f, 0); btnRT.anchorMax = new Vector2(0.5f, 0);
+            btnRT.pivot = new Vector2(0.5f, 0);
+            btnRT.anchoredPosition = new Vector2(0, 10); // Cerca de la base inferior
+            btnRT.sizeDelta = new Vector2(150, 40);
+
+            GameObject btnTextObj = new GameObject("BtnText");
+            btnTextObj.transform.SetParent(btnObj.transform, false);
+            TextMeshProUGUI btnText = btnTextObj.AddComponent<TextMeshProUGUI>();
+            btnText.text = "CERRAR";
+            btnText.fontSize = 20;
+            btnText.fontStyle = FontStyles.Bold;
+            btnText.alignment = TextAlignmentOptions.Center;
+            btnText.color = Color.white;
+            RectTransform btnTextRT = btnTextObj.GetComponent<RectTransform>();
+            btnTextRT.anchorMin = Vector2.zero; btnTextRT.anchorMax = Vector2.one;
+            btnTextRT.sizeDelta = Vector2.zero;
+
+            btn.onClick.AddListener(() => {
+                canvasObj.SetActive(false);
+            });
+
+            SetLayerRecursively(canvasObj, 5); 
+            canvasObj.SetActive(false);
+            return canvasObj;
         }
 
         private void OpenDetailsPopup(string title, string info, string imageUrl)
@@ -336,6 +430,10 @@ namespace HorizonFaser.UI
             {
                 _detailsPopup.SetActive(false);
             }
+            if (_permitPopup != null)
+            {
+                _permitPopup.SetActive(false);
+            }
             
             StopAllCoroutines();
             StartCoroutine(AnimatePopOut());
@@ -391,7 +489,7 @@ namespace HorizonFaser.UI
             }
             
             RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
-            canvasRT.sizeDelta = new Vector2(450, 220); // Más ancho, proporciones cinemáticas
+            canvasRT.sizeDelta = new Vector2(550, 220); // Más ancho, proporciones cinemáticas
 
             // 2. Main Background (Glassmorphism oscuro)
             GameObject bgObj = new GameObject("Background");
@@ -486,7 +584,7 @@ namespace HorizonFaser.UI
             RectTransform cBtnRT = crewBtnObj.GetComponent<RectTransform>();
             cBtnRT.anchorMin = new Vector2(1, 0); cBtnRT.anchorMax = new Vector2(1, 0);
             cBtnRT.pivot = new Vector2(1, 0);
-            cBtnRT.anchoredPosition = new Vector2(-150, 20); // a la izquierda del otro boton
+            cBtnRT.anchoredPosition = new Vector2(-280, 20); // a la izquierda del otro boton
             cBtnRT.sizeDelta = new Vector2(120, 40);
 
             GameObject cBtnTextObj = new GameObject("CBtnText");
@@ -511,7 +609,7 @@ namespace HorizonFaser.UI
             RectTransform mBtnRT = machBtnObj.GetComponent<RectTransform>();
             mBtnRT.anchorMin = new Vector2(1, 0); mBtnRT.anchorMax = new Vector2(1, 0);
             mBtnRT.pivot = new Vector2(1, 0);
-            mBtnRT.anchoredPosition = new Vector2(-20, 20); // a la derecha
+            mBtnRT.anchoredPosition = new Vector2(-150, 20); // en medio
             mBtnRT.sizeDelta = new Vector2(120, 40);
 
             GameObject mBtnTextObj = new GameObject("MBtnText");
@@ -525,6 +623,31 @@ namespace HorizonFaser.UI
             RectTransform mBtnTextRT = mBtnTextObj.GetComponent<RectTransform>();
             mBtnTextRT.anchorMin = Vector2.zero; mBtnTextRT.anchorMax = Vector2.one;
             mBtnTextRT.sizeDelta = Vector2.zero;
+
+            // 9.5 Permit Button
+            GameObject permitBtnObj = new GameObject("PermitButton");
+            permitBtnObj.transform.SetParent(bgObj.transform, false);
+            Image permitBtnImg = permitBtnObj.AddComponent<Image>();
+            permitBtnImg.color = new Color(0.2f, 0.5f, 0.8f, 1f); // Blue
+            Button pBtn = permitBtnObj.AddComponent<Button>();
+
+            RectTransform pBtnRT = permitBtnObj.GetComponent<RectTransform>();
+            pBtnRT.anchorMin = new Vector2(1, 0); pBtnRT.anchorMax = new Vector2(1, 0);
+            pBtnRT.pivot = new Vector2(1, 0);
+            pBtnRT.anchoredPosition = new Vector2(-20, 20); // a la derecha
+            pBtnRT.sizeDelta = new Vector2(120, 40);
+
+            GameObject pBtnTextObj = new GameObject("PBtnText");
+            pBtnTextObj.transform.SetParent(permitBtnObj.transform, false);
+            TextMeshProUGUI pBtnText = pBtnTextObj.AddComponent<TextMeshProUGUI>();
+            pBtnText.text = "View Permits";
+            pBtnText.fontSize = 14;
+            pBtnText.fontStyle = FontStyles.Bold;
+            pBtnText.alignment = TextAlignmentOptions.Center;
+            pBtnText.color = Color.white;
+            RectTransform pBtnTextRT = pBtnTextObj.GetComponent<RectTransform>();
+            pBtnTextRT.anchorMin = Vector2.zero; pBtnTextRT.anchorMax = Vector2.one;
+            pBtnTextRT.sizeDelta = Vector2.zero;
 
             // 10. Close Button on main card
             GameObject closeBtnObj = new GameObject("CloseMainCardBtn");
@@ -560,9 +683,11 @@ namespace HorizonFaser.UI
             uiScript.badgeBg = badge;
             uiScript.crewButton = cBtn;
             uiScript.machineryButton = mBtn;
+            uiScript.permitButton = pBtn;
             
             cBtn.onClick.AddListener(uiScript.OnCrewButtonClicked);
             mBtn.onClick.AddListener(uiScript.OnMachineryButtonClicked);
+            pBtn.onClick.AddListener(uiScript.OnPermitButtonClicked);
             clBtn.onClick.AddListener(uiScript.HideCard);
 
             // IMPORTANTE PARA XR: Asignar al layer 'UI' (5) para que los rayos interactúen correctamente
