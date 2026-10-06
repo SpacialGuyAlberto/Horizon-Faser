@@ -31,7 +31,7 @@ namespace HorizonFaser.Sensors
         private bool isRunning;
 
         // Utilizamos variables thread-safe para pasar los datos al hilo principal
-        private ARCompanionData latestData;
+        public ARCompanionData latestData;
         private bool hasNewData = false;
         private object dataLock = new object();
 

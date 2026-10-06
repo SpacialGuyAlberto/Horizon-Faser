@@ -40,21 +40,25 @@ namespace HorizonFaser.Renderers
                 }
             }
 
-            // Comentado para evitar que sobrescriba la calibración real o el GPS (Requerimiento C y B)
+            // Intentar obtener las coordenadas desde el broadcast UDP del teléfono
+            var companionListener = UnityEngine.Object.FindFirstObjectByType<HorizonFaser.Sensors.ARCompanionListener>();
             
-            if (hasValidCoords)
+            if (companionListener != null && companionListener.latestData != null && companionListener.latestData.lat != 0)
             {
+                // Requerimiento: Usar la georreferencia del broadcast de la app en Android
+                georeference.latitude = companionListener.latestData.lat;
+                georeference.longitude = companionListener.latestData.lng;
+                georeference.height = companionListener.latestData.alt > 0 ? companionListener.latestData.alt : 0;
+                Debug.Log($"[Cesium] SegmentRenderer usa georreferencia del Teléfono (UDP): Lat {georeference.latitude}, Lng {georeference.longitude}");
+            }
+            else if (hasValidCoords)
+            {
+                // Fallback: Si no hay teléfono conectado o no hay GPS, usar el centro de los segmentos
                 georeference.longitude = (minLng + maxLng) / 2.0;
                 georeference.latitude = (minLat + maxLat) / 2.0;
                 georeference.height = 0;
+                Debug.LogWarning("[Cesium] SegmentRenderer usa georreferencia promediada (Fallback).");
             }
-            else
-            {
-                georeference.longitude = 10.0;
-                georeference.latitude = 51.0;
-                georeference.height = 0;
-            }
-        
 
             await Task.Yield();
 
