@@ -163,7 +163,18 @@ namespace HorizonFaser.UI
             }
         }
 
-        private async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
+        public void LoadProjectFromId(long projectId)
+        {
+            if (_projects == null) return;
+            var project = _projects.Find(p => p.Id == projectId);
+            if (project != null)
+            {
+                Debug.Log($"[Dashboard] Loading project {projectId} requested by Mobile App via UDP.");
+                AutoLoadAndRenderProject(project);
+            }
+        }
+
+        public async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
         {
             var canvas = GetComponent<Canvas>();
             if (canvas != null) canvas.enabled = false;

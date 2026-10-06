@@ -20,6 +20,7 @@ namespace HorizonFaser.XR
             CleanDummyEnvironment();
             PatchEventSystemForXR();
             PatchCanvasesForXR();
+            SetupARCalibrationAndSensors();
         }
 
         private static void SetupARSession()
@@ -114,6 +115,38 @@ namespace HorizonFaser.XR
                 if (canvas.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
                 {
                     canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+                }
+            }
+        }
+        private static void SetupARCalibrationAndSensors()
+        {
+            // Intentar añadir los scripts al XR Origin (si existe) para mantener todo agrupado.
+            var originObj = GameObject.Find("XR Origin (XR Rig)");
+            if (originObj == null) originObj = GameObject.Find("XR Origin");
+            if (originObj == null && Camera.main != null) originObj = Camera.main.transform.parent?.gameObject;
+            
+            if (originObj != null)
+            {
+                if (originObj.GetComponent<ARAnchorManager>() == null)
+                    originObj.AddComponent<ARAnchorManager>();
+                if (originObj.GetComponent<ARCalibrationManager>() == null)
+                    originObj.AddComponent<ARCalibrationManager>();
+                if (originObj.GetComponent<HorizonFaser.Sensors.ARCompanionListener>() == null)
+                    originObj.AddComponent<HorizonFaser.Sensors.ARCompanionListener>();
+                    
+                Debug.Log($"[XRBootstrapper] ARCalibrationManager y ARCompanionListener añadidos a {originObj.name}");
+            }
+            else
+            {
+                // Si no hay un XR Origin obvio, crear un nuevo GameObject para estos servicios.
+                var servicesObj = GameObject.Find("AR_Services");
+                if (servicesObj == null)
+                {
+                    servicesObj = new GameObject("AR_Services");
+                    servicesObj.AddComponent<ARAnchorManager>();
+                    servicesObj.AddComponent<ARCalibrationManager>();
+                    servicesObj.AddComponent<HorizonFaser.Sensors.ARCompanionListener>();
+                    Debug.Log("[XRBootstrapper] Creado GameObject 'AR_Services' con los componentes de calibración.");
                 }
             }
         }

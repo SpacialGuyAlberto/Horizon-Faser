@@ -40,6 +40,8 @@ namespace HorizonFaser.Renderers
                 }
             }
 
+            // Comentado para evitar que sobrescriba la calibración real o el GPS (Requerimiento C y B)
+            /*
             if (hasValidCoords)
             {
                 georeference.longitude = (minLng + maxLng) / 2.0;
@@ -52,6 +54,7 @@ namespace HorizonFaser.Renderers
                 georeference.latitude = 51.0;
                 georeference.height = 0;
             }
+            */
 
             await Task.Yield();
 
@@ -149,26 +152,12 @@ namespace HorizonFaser.Renderers
                         }
 
                         string basePath = "Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture";
-                        Texture2D tex = Resources.Load<Texture2D>(basePath);
-                        Texture2D normalTex = Resources.Load<Texture2D>(basePath + "_normal");
-
-                        Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                        
-                        if (tex != null) urpMat.mainTexture = tex;
-                        else urpMat.color = segmentMaterial.color;
-
-                        if (normalTex != null)
-                        {
-                            urpMat.SetTexture("_BumpMap", normalTex);
-                            urpMat.EnableKeyword("_NORMALMAP");
-                        }
-                        
-                        urpMat.SetFloat("_Metallic", 0.0f);
-                        urpMat.SetFloat("_Smoothness", 0.6f); 
+                        // Material compartido y anti-parpadeo (smoothness baja = sin destellos especulares)
+                        Material urpMat = PipeMaterialFactory.Get(basePath, segmentMaterial.color, 0.0f, 0.3f);
 
                         foreach (var r in ductVisual.GetComponentsInChildren<Renderer>())
                         {
-                            r.material = urpMat;
+                            r.sharedMaterial = urpMat;
                         }
                     }
                     else

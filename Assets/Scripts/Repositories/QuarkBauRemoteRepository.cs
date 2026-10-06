@@ -5,9 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using HorizonFaser.Models;
-
-// Requires Newtonsoft.Json. If not installed, you can install it via Unity Package Manager 
-// by adding 'com.unity.nuget.newtonsoft-json'
 using Newtonsoft.Json;
 
 namespace HorizonFaser.Repositories
@@ -36,8 +33,6 @@ namespace HorizonFaser.Repositories
         {
             var handler = new LoggingHandler(new HttpClientHandler());
             _httpClient = new HttpClient(handler);
-            // Reducimos el timeout a 5 segundos para evitar que la UI se quede congelada (traba) 
-            // si el servidor local no responde o no hay conexión.
             _httpClient.Timeout = TimeSpan.FromSeconds(5);
         }
 
@@ -50,12 +45,42 @@ namespace HorizonFaser.Repositories
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         }
 
+        // --- MÉTODOS DE CACHÉ OFFLINE ---
+        private void SaveCache(string key, string json)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(Application.persistentDataPath, key + ".json");
+                System.IO.File.WriteAllText(path, json);
+                Debug.Log($"[Offline Cache] Saved {key}.json");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Offline Cache] Error saving {key}: {ex.Message}");
+            }
+        }
+
+        private string LoadCache(string key)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(Application.persistentDataPath, key + ".json");
+                if (System.IO.File.Exists(path))
+                {
+                    Debug.Log($"[Offline Cache] Loaded {key}.json");
+                    return System.IO.File.ReadAllText(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Offline Cache] Error loading {key}: {ex.Message}");
+            }
+            return null;
+        }
+
         public async Task<UserInfo> LoginAsync(string usernameOrEmail, string password)
         {
-            // Login Mocked - as requested by the user. 
-            // We bypass the real /api/auth/login to avoid 403 / HTML parsing errors.
             Debug.Log("[QuarkBauRemoteRepository] Mocking login without calling the backend.");
-            
             var mockUser = new UserInfo
             {
                 Email = usernameOrEmail,
@@ -63,49 +88,62 @@ namespace HorizonFaser.Repositories
                 LastName = "Demo",
                 Token = "demo_jwt_token_horizon_faser"
             };
-            
             ApiToken = mockUser.Token;
             _httpClient.DefaultRequestHeaders.Clear();
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-            // Optional delay to simulate network
             await Task.Delay(500); 
-
             return mockUser;
         }
 
         public async Task<List<QuarkbauProject>> FetchProjectsAsync()
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects");
-            
-            if (!response.IsSuccessStatusCode)
+            string cacheKey = "projects_list";
+            try
             {
-                var errorText = await response.Content.ReadAsStringAsync();
-                Debug.LogError($"[QuarkBauRemoteRepository] FetchProjects failed! Status: {response.StatusCode}. Response: {errorText}");
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects");
                 response.EnsureSuccessStatusCode();
-            }
+                var json = await response.Content.ReadAsStringAsync();
+                
+                if (json.TrimStart().StartsWith("<"))
+                    throw new System.Exception("HTML returned instead of JSON");
 
-            var json = await response.Content.ReadAsStringAsync();
-            Debug.Log($"[QuarkBauRemoteRepository] FetchProjects raw JSON: {json}");
-            
-            if (json.TrimStart().StartsWith("<"))
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<QuarkbauProject>>(json);
+            }
+            catch (Exception ex)
             {
-                throw new System.Exception($"El servidor devolvió una página HTML en lugar de datos JSON. Esto suele ocurrir si la IP es incorrecta (ej. apuntando al dashboard de Angular en el puerto 4200) o si hay un portal cautivo. URL llamada: {ServerBaseUrl}");
+                Debug.LogWarning($"[QuarkBauRemoteRepository] FetchProjects failed, attempting offline cache. Error: {ex.Message}");
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson))
+                    return JsonConvert.DeserializeObject<List<QuarkbauProject>>(cachedJson);
+                throw;
             }
-
-            return JsonConvert.DeserializeObject<List<QuarkbauProject>>(json);
         }
 
         public async Task<List<QuarkBauSegment>> FetchProjectSegmentsByIdAsync(long projectId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/segments");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+            string cacheKey = $"segments_project_{projectId}";
+            try
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/segments");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[QuarkBauRemoteRepository] FetchProjectSegmentsById failed, attempting offline cache. Error: {ex.Message}");
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson))
+                    return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<List<QuarkBauSegment>> FetchNearbySegmentsAsync(double centerLat, double centerLng, double radiusMeters)
         {
+            // Nearby no lo cacheamos por clave específica o podríamos hacerlo usando lat/lng aproximadas, por ahora no.
             var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/segments/nearest?lat={centerLat}&lng={centerLng}&radius={radiusMeters}");
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
@@ -114,27 +152,59 @@ namespace HorizonFaser.Repositories
 
         public async Task<List<QuarkBauSegment>> FetchProjectSegmentsAsync()
         {
-            // Assuming this fetches all segments for the currently active project
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/segments");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+            string cacheKey = "segments_all";
+            try 
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/segments");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+            }
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<GeometryPoint> FetchProjectLocationAsync(long projectId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/location");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<GeometryPoint>(json);
+            string cacheKey = $"location_project_{projectId}";
+            try
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/location");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<GeometryPoint>(json);
+            }
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<GeometryPoint>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<List<Cluster>> FetchClusterByProjectIdAsync(long projectId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/clusters/project/{projectId}");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<List<Cluster>>(json);
+            string cacheKey = $"clusters_project_{projectId}";
+            try
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/clusters/project/{projectId}");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<Cluster>>(json);
+            }
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Cluster>>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<Pop> FetchPopByIdAsync(long popId)
@@ -155,18 +225,40 @@ namespace HorizonFaser.Repositories
 
         public async Task<List<Netzverteiler>> FetchProjectNetzverteilersAsync(long projectId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/netzverteilers");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<List<Netzverteiler>>(json);
+            string cacheKey = $"netzverteilers_project_{projectId}";
+            try
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/netzverteilers");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<Netzverteiler>>(json);
+            }
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Netzverteiler>>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<List<Pop>> FetchProjectPopsAsync(long projectId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/pops");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<List<Pop>>(json);
+            string cacheKey = $"pops_project_{projectId}";
+            try
+            {
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/pops");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                return JsonConvert.DeserializeObject<List<Pop>>(json);
+            }
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Pop>>(cachedJson);
+                throw;
+            }
         }
 
         public async Task<List<Pop>> FetchPopsByClusterIdAsync(long clusterId)
@@ -179,9 +271,9 @@ namespace HorizonFaser.Repositories
 
         public async Task<bool> UpdateSegmentStateAsync(long segmentId, WorkflowState newState)
         {
+            // Offline queueing could be added here, but for now we require internet
             var payload = new { state = newState.ToString() };
             var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
-            
             var response = await _httpClient.PutAsync($"{ServerBaseUrl}/api/segments/{segmentId}/state", content);
             return response.IsSuccessStatusCode;
         }
@@ -195,46 +287,67 @@ namespace HorizonFaser.Repositories
 
         public async Task<List<UtilityLine>> FetchExternalUtilitiesAsync()
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/v1/utilities");
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            
-            var jArray = Newtonsoft.Json.Linq.JArray.Parse(json);
-            var result = new List<UtilityLine>();
-            foreach (var item in jArray)
+            string cacheKey = "utilities_all";
+            try
             {
-                var type = item["utilityType"]?.ToString();
-                if (type == "ELECTRICITY")
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/v1/utilities");
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
+                SaveCache(cacheKey, json);
+                
+                var jArray = Newtonsoft.Json.Linq.JArray.Parse(json);
+                var result = new List<UtilityLine>();
+                foreach (var item in jArray)
                 {
-                    result.Add(item.ToObject<ElectricityCable>());
+                    var type = item["utilityType"]?.ToString();
+                    if (type == "ELECTRICITY") result.Add(item.ToObject<ElectricityCable>());
+                    else if (type == "GAS") result.Add(item.ToObject<GasPipe>());
+                    else result.Add(item.ToObject<WaterPipe>());
                 }
-                else if (type == "GAS")
-                {
-                    result.Add(item.ToObject<GasPipe>());
-                }
-                else
-                {
-                    result.Add(item.ToObject<WaterPipe>());
-                }
+                return result;
             }
-            return result;
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson))
+                {
+                    var jArray = Newtonsoft.Json.Linq.JArray.Parse(cachedJson);
+                    var result = new List<UtilityLine>();
+                    foreach (var item in jArray)
+                    {
+                        var type = item["utilityType"]?.ToString();
+                        if (type == "ELECTRICITY") result.Add(item.ToObject<ElectricityCable>());
+                        else if (type == "GAS") result.Add(item.ToObject<GasPipe>());
+                        else result.Add(item.ToObject<WaterPipe>());
+                    }
+                    return result;
+                }
+                throw;
+            }
         }
+        
         public async Task<List<HorizonFaser.Models.FencingPlan>> FetchFencingPlansAsync(long segmentId)
         {
-            var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/planning/fencing-plans/segment/{segmentId}");
-            if (response.IsSuccessStatusCode)
+            string cacheKey = $"fencing_segment_{segmentId}";
+            try
             {
-                var json = await response.Content.ReadAsStringAsync();
-                try
+                var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/planning/fencing-plans/segment/{segmentId}");
+                if (response.IsSuccessStatusCode)
                 {
+                    var json = await response.Content.ReadAsStringAsync();
+                    SaveCache(cacheKey, json);
                     return Newtonsoft.Json.JsonConvert.DeserializeObject<List<HorizonFaser.Models.FencingPlan>>(json);
                 }
-                catch (System.Exception ex)
-                {
-                    UnityEngine.Debug.LogError($"[QuarkBauRemoteRepository] Error parsing FencingPlans JSON: {ex.Message}\nRaw JSON: {json}");
-                }
+                return new List<HorizonFaser.Models.FencingPlan>();
             }
-            return new List<HorizonFaser.Models.FencingPlan>();
+            catch (Exception ex)
+            {
+                var cachedJson = LoadCache(cacheKey);
+                if (!string.IsNullOrEmpty(cachedJson))
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<List<HorizonFaser.Models.FencingPlan>>(cachedJson);
+                
+                return new List<HorizonFaser.Models.FencingPlan>();
+            }
         }
     }
 }

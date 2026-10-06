@@ -126,33 +126,12 @@ namespace HorizonFaser.Renderers
                             }
                         }
 
-                        Texture2D tex = Resources.Load<Texture2D>(basePath);
-                        Texture2D normalTex = Resources.Load<Texture2D>(basePath + "_normal");
-                        Texture2D metallicTex = Resources.Load<Texture2D>(basePath + "_metallic");
-
-                        Material urpMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                        
-                        if (tex != null) urpMat.mainTexture = tex;
-                        else urpMat.color = fallbackColor;
-
-                        if (normalTex != null)
-                        {
-                            urpMat.SetTexture("_BumpMap", normalTex);
-                            urpMat.EnableKeyword("_NORMALMAP");
-                        }
-                        
-                        if (metallicTex != null)
-                        {
-                            urpMat.SetTexture("_MetallicGlossMap", metallicTex);
-                            urpMat.EnableKeyword("_METALLICGLOSSMAP");
-                        }
-                        
-                        urpMat.SetFloat("_Metallic", 0.3f); 
-                        urpMat.SetFloat("_Smoothness", 0.8f);
+                        // Material compartido y anti-parpadeo (antes smoothness 0.8 => destellos)
+                        Material urpMat = PipeMaterialFactory.Get(basePath, fallbackColor, 0.2f, 0.35f, useMetallicMap: true);
 
                         foreach (var r in utilVisual.GetComponentsInChildren<Renderer>())
                         {
-                            r.material = urpMat;
+                            r.sharedMaterial = urpMat;
                         }
                     }
                     else
