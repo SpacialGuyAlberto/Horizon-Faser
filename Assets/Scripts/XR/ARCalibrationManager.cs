@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -86,29 +87,25 @@ namespace HorizonFaser.XR
             }
 
             var pose = new Pose(position, rotation);
-            var anchor = await anchorManager.AddAnchorAsync(pose);
             
-            if (anchor == null)
-            {
-                Debug.LogError("[ARCalibrationManager] Falló la creación del ancla.");
-                return;
-            }
-
-            currentCalibrationAnchor = anchor;
-            
-            // Intenta guardar el ancla (Requiere soporte del proveedor, ej. Meta OpenXR)
-            var saveResult = await anchorManager.TrySaveAnchorAsync(anchor.trackableId);
-            
-            if (saveResult.status.IsSuccess())
-            {
-                Debug.Log($"[ARCalibrationManager] Ancla guardada exitosamente! ID: {anchor.trackableId}");
-                PlayerPrefs.SetString(savedAnchorIdKey, anchor.trackableId.ToString());
-                PlayerPrefs.Save();
-            }
-            else
-            {
-                Debug.LogWarning($"[ARCalibrationManager] No se pudo guardar el ancla. Estado: {saveResult.status}");
-            }
+            // var anchor = await anchorManager.AddAnchorAsync(pose);
+            // if (anchor == null)
+            // {
+            //     Debug.LogError("[ARCalibrationManager] Falló la creación del ancla.");
+            //     return;
+            // }
+            // currentCalibrationAnchor = anchor;
+            // var saveResult = await anchorManager.TrySaveAnchorAsync(anchor.trackableId);
+            // if (saveResult.status.IsSuccess())
+            // {
+            //     Debug.Log($"[ARCalibrationManager] Ancla guardada exitosamente! ID: {anchor.trackableId}");
+            //     PlayerPrefs.SetString(savedAnchorIdKey, anchor.trackableId.ToString());
+            //     PlayerPrefs.Save();
+            // }
+            // else
+            // {
+            //     Debug.LogWarning($"[ARCalibrationManager] No se pudo guardar el ancla. Estado: {saveResult.status}");
+            // }
         }
 
         private async Task LoadAndApplyCalibrationAnchor(Guid anchorId)
@@ -119,22 +116,16 @@ namespace HorizonFaser.XR
                 return;
             }
 
-            var loadResult = await anchorManager.TryLoadAnchorAsync(new TrackableId(anchorId.ToString()));
-            
-            if (loadResult.status.IsSuccess() && loadResult.anchor != null)
-            {
-                currentCalibrationAnchor = loadResult.anchor;
-                Debug.Log($"[ARCalibrationManager] Ancla cargada en la posición: {currentCalibrationAnchor.transform.position}");
-                
-                // TODO: En un flujo completo de calibración persistente, tendríamos que haber guardado
-                // qué nodo virtual correspondía a esta ancla (ej. lat/lng/height), para poder re-alinear el georeference aquí.
-                // Por ahora, asumimos que el georeference ya tiene su lat/lng cargado del offline cache o GPS,
-                // y simplemente informamos a la UI que el ancla está lista.
-            }
-            else
-            {
-                Debug.LogWarning($"[ARCalibrationManager] Falló la carga del ancla. Estado: {loadResult.status}");
-            }
+            // var loadResult = await anchorManager.TryLoadAnchorAsync(new TrackableId(anchorId.ToString()));
+            // if (loadResult.status.IsSuccess() && loadResult.anchor != null)
+            // {
+            //     currentCalibrationAnchor = loadResult.anchor;
+            //     Debug.Log($"[ARCalibrationManager] Ancla cargada en la posición: {currentCalibrationAnchor.transform.position}");
+            // }
+            // else
+            // {
+            //     Debug.LogWarning($"[ARCalibrationManager] Falló la carga del ancla. Estado: {loadResult.status}");
+            // }
         }
     }
 }

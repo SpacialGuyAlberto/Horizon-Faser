@@ -41,7 +41,7 @@ namespace HorizonFaser.Renderers
             }
 
             // Comentado para evitar que sobrescriba la calibración real o el GPS (Requerimiento C y B)
-            /*
+            
             if (hasValidCoords)
             {
                 georeference.longitude = (minLng + maxLng) / 2.0;
@@ -54,7 +54,7 @@ namespace HorizonFaser.Renderers
                 georeference.latitude = 51.0;
                 georeference.height = 0;
             }
-            */
+        
 
             await Task.Yield();
 

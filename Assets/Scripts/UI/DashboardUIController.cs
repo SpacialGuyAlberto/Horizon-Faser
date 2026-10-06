@@ -51,17 +51,6 @@ namespace HorizonFaser.UI
 
             if (_listContainer == null) CreateListContainer();
 
-            // Destruir ABSOLUTAMENTE TODOS los raycasters previos (incluido el de XR que bloquea el ratón)
-            var raycasters = GetComponents<UnityEngine.UI.GraphicRaycaster>();
-            foreach(var r in raycasters)
-            {
-                DestroyImmediate(r);
-            }
-
-            // Añadir un GraphicRaycaster limpio y puro
-            var raycaster = gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-            raycaster.ignoreReversedGraphics = false; // Permitir clics desde cualquier ángulo
-
             var cg = GetComponent<CanvasGroup>();
             if (cg != null)
             {
@@ -100,6 +89,18 @@ namespace HorizonFaser.UI
                 GameObject magnet = new GameObject("XRPointerMagnet");
                 magnet.AddComponent<HorizonFaser.XR.XRPointerMagnet>();
             }
+
+            // --- CARGA DIRECTA DE PROYECTO 6 (FÜRTH) ---
+            var geo = FindFirstObjectByType<CesiumForUnity.CesiumGeoreference>();
+            if (geo != null)
+            {
+                geo.latitude = 49.4774; 
+                geo.longitude = 10.9902;
+                geo.height = 300.0;
+            }
+            
+            if (welcomeText != null) welcomeText.text = "Cargando Proyecto 6 (Fürth)...";
+            LoadProjectFromId(6);
         }
 
         private System.Collections.IEnumerator ForceXRLaserDistanceRoutine()
@@ -165,13 +166,15 @@ namespace HorizonFaser.UI
 
         public void LoadProjectFromId(long projectId)
         {
-            if (_projects == null) return;
-            var project = _projects.Find(p => p.Id == projectId);
-            if (project != null)
+            if (_repository == null)
             {
-                Debug.Log($"[Dashboard] Loading project {projectId} requested by Mobile App via UDP.");
-                AutoLoadAndRenderProject(project);
+                _repository = new Repositories.QuarkBauRemoteRepository();
+                ((Repositories.QuarkBauRemoteRepository)_repository).Configure("http://192.168.178.57:8080", "");
             }
+            
+            Debug.Log($"[Dashboard] Loading project {projectId} requested by Mobile App via UDP.");
+            var dummyProject = new Models.QuarkbauProject { Id = projectId };
+            AutoLoadAndRenderProject(dummyProject);
         }
 
         public async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
