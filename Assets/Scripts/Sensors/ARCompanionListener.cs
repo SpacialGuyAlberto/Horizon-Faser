@@ -24,7 +24,7 @@ namespace HorizonFaser.Sensors
     {
         public int listenPort = 8000;
         public CesiumGeoreference georeference;
-        public bool autoUpdateGeoreference = true;
+        public bool autoUpdateGeoreference = false;
 
         private UdpClient udpClient;
         private Thread receiveThread;
@@ -37,6 +37,8 @@ namespace HorizonFaser.Sensors
 
         void Start()
         {
+            autoUpdateGeoreference = false; // FORZADO: Evitar que Unity lo sobreescriba desde el Inspector
+            
             if (georeference == null)
             {
                 georeference = FindFirstObjectByType<CesiumGeoreference>();
