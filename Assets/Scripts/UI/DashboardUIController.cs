@@ -83,24 +83,16 @@ namespace HorizonFaser.UI
             // Iniciar corrutina para forzar la longitud del láser XR continuamente
             StartCoroutine(ForceXRLaserDistanceRoutine());
 
-            // Crear el Imán de Puntero (Magnet) para selección sin físicas
             if (FindObjectOfType<HorizonFaser.XR.XRPointerMagnet>() == null)
             {
                 GameObject magnet = new GameObject("XRPointerMagnet");
                 magnet.AddComponent<HorizonFaser.XR.XRPointerMagnet>();
             }
 
-            // --- CARGA DIRECTA DE PROYECTO 6 (FÜRTH) ---
-            var geo = FindFirstObjectByType<CesiumForUnity.CesiumGeoreference>();
-            if (geo != null)
+            if (welcomeText != null)
             {
-                geo.latitude = 49.4774; 
-                geo.longitude = 10.9902;
-                geo.height = 300.0;
+                welcomeText.text = "App lista. Esperando conexión del teléfono por UDP...";
             }
-            
-            if (welcomeText != null) welcomeText.text = "Cargando Proyecto 6 (Fürth)...";
-            LoadProjectFromId(6);
         }
 
         private System.Collections.IEnumerator ForceXRLaserDistanceRoutine()
@@ -180,16 +172,68 @@ namespace HorizonFaser.UI
         public async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
         {
             var canvas = GetComponent<Canvas>();
-            if (canvas != null) canvas.enabled = false;
             
             if (_listContainer != null) _listContainer.SetActive(false);
             
+            if (welcomeText != null) {
+                welcomeText.text = $"Descargando datos del proyecto {project.Id}...";
+                welcomeText.color = Color.yellow;
+            }
+
             var segments = await _repository.FetchProjectSegmentsByIdAsync(project.Id);
             if (segments == null || segments.Count == 0)
             {
+                if (welcomeText != null) welcomeText.text = "El proyecto no tiene segmentos.";
                 return;
             }
             
+            // Calcular centro del proyecto para validación de distancia
+            double minLat = double.MaxValue, maxLat = double.MinValue;
+            double minLng = double.MaxValue, maxLng = double.MinValue;
+            bool hasValidCoords = false;
+            foreach (var seg in segments) {
+                if (seg.Geometry != null) {
+                    foreach (var pt in seg.Geometry) {
+                        if (pt.Latitude < minLat) minLat = pt.Latitude;
+                        if (pt.Latitude > maxLat) maxLat = pt.Latitude;
+                        if (pt.Longitude < minLng) minLng = pt.Longitude;
+                        if (pt.Longitude > maxLng) maxLng = pt.Longitude;
+                        hasValidCoords = true;
+                    }
+                }
+            }
+
+            if (hasValidCoords) {
+                double projLat = (minLat + maxLat) / 2.0;
+                double projLng = (minLng + maxLng) / 2.0;
+                
+                var companionListener = FindObjectOfType<HorizonFaser.Sensors.ARCompanionListener>();
+                if (companionListener != null && companionListener.latestData != null && companionListener.latestData.lat != 0) {
+                    double phoneLat = companionListener.latestData.lat;
+                    double phoneLng = companionListener.latestData.lng;
+                    
+                    // Aproximación rápida a kilómetros usando Haversine plano
+                    double latDiff = (projLat - phoneLat) * 111.32;
+                    double lngDiff = (projLng - phoneLng) * 111.32 * System.Math.Cos(projLat * System.Math.PI / 180.0);
+                    double distanceKm = System.Math.Sqrt(latDiff * latDiff + lngDiff * lngDiff);
+
+                    Debug.Log($"[Dashboard] Distancia al proyecto: {distanceKm:F2} km");
+
+                    if (distanceKm > 10.0) // Límite de 10 km
+                    {
+                        if (welcomeText != null) {
+                            welcomeText.text = $"ESTÁS MUY LEJOS\nDistancia al proyecto: {distanceKm:F1} km. Acércate para renderizar.";
+                            welcomeText.color = Color.red;
+                        }
+                        if (canvas != null) canvas.enabled = true; // Asegurar que sea visible el mensaje
+                        return; // ABORTAR RENDERIZADO
+                    }
+                }
+            }
+
+            if (canvas != null) canvas.enabled = false;
+            
+
             _ = HorizonFaser.Renderers.SegmentRenderer.RenderSegmentsCesium(segments, GetComponent<CanvasGroup>(), FindObjectOfType<CesiumForUnity.CesiumGeoreference>(), _repository);
 
             try
