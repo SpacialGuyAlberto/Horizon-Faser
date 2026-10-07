@@ -1,5 +1,0 @@
-/home/luis/Dokumente/Unity/Horizon-faser/.utmp/RelWithDebInfo/134f8272/arm64-v8a/CMakeFiles/edit_cache.dir
-/home/luis/Dokumente/Unity/Horizon-faser/.utmp/RelWithDebInfo/134f8272/arm64-v8a/CMakeFiles/rebuild_cache.dir
-/home/luis/Dokumente/Unity/Horizon-faser/.utmp/RelWithDebInfo/134f8272/arm64-v8a/GameActivity/CMakeFiles/game.dir
-/home/luis/Dokumente/Unity/Horizon-faser/.utmp/RelWithDebInfo/134f8272/arm64-v8a/GameActivity/CMakeFiles/edit_cache.dir
-/home/luis/Dokumente/Unity/Horizon-faser/.utmp/RelWithDebInfo/134f8272/arm64-v8a/GameActivity/CMakeFiles/rebuild_cache.dir

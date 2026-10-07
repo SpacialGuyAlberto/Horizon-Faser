@@ -120,15 +120,16 @@ namespace HorizonFaser.Sensors
 
             if (data.projectId > 0 && data.projectId != _currentProjectId)
             {
-                _currentProjectId = data.projectId;
                 var dashboard = FindFirstObjectByType<HorizonFaser.UI.DashboardUIController>();
                 if (dashboard != null)
                 {
+                    _currentProjectId = data.projectId;
                     dashboard.LoadProjectFromId(data.projectId);
                 }
                 else
                 {
-                    Debug.LogWarning("[ARCompanionListener] DashboardUIController no encontrado. No se puede cargar el proyecto.");
+                    // No actualizamos _currentProjectId para que vuelva a intentar en el siguiente latido
+                    Debug.LogWarning("[ARCompanionListener] DashboardUIController no encontrado. Reintentando en el próximo latido.");
                 }
             }
 

@@ -1,2 +1,0 @@
-/home/luis/Dokumente/Unity/Horizon-faser/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/CMakeLists.txt
-/home/luis/Dokumente/Unity/Horizon-faser/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/CMakeLists.txt

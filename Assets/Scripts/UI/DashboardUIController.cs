@@ -144,16 +144,43 @@ namespace HorizonFaser.UI
             _repository = repository;
             _projects = initialProjects;
 
-            // AUTO SELECT PROJECT 6 Y RENDERIZAR DIRECTO CON CESIUM
-            var p6 = _projects.Find(p => p.Id == 6);
-            if (p6 != null)
+            // EVALUACIÓN: ¿Hay un proyecto siendo transmitido (broadcasting)?
+            var companionListener = FindObjectOfType<HorizonFaser.Sensors.ARCompanionListener>();
+            if (companionListener != null && companionListener.latestData != null && companionListener.latestData.projectId > 0)
             {
-                AutoLoadAndRenderProject(p6);
+                long broadcastedProjectId = companionListener.latestData.projectId;
+                Debug.Log($"[Dashboard] Se encontró un proyecto siendo transmitido: {broadcastedProjectId}");
+                
+                var targetProject = _projects.Find(p => p.Id == broadcastedProjectId);
+                if (targetProject != null)
+                {
+                    AutoLoadAndRenderProject(targetProject);
+                }
+                else
+                {
+                    // Si el proyecto transmitido no está en la lista inicial, lo creamos temporalmente para cargarlo
+                    LoadProjectFromId(broadcastedProjectId);
+                }
             }
             else
             {
-                ShowProjects();
+                // Si NO hay proyecto transmitiéndose, mostramos pantalla de que no hay proyecto seleccionado
+                Debug.Log("[Dashboard] No se detectó transmisión (broadcast) activa.");
+                ShowNoProjectSelected();
             }
+        }
+
+        private void ShowNoProjectSelected()
+        {
+            if (welcomeText != null)
+            {
+                welcomeText.text = "No hay proyecto seleccionado.\nEsperando broadcast desde la App Móvil...";
+                welcomeText.color = Color.white;
+            }
+            ClearList();
+            
+            // Opcional: Podrías mantener el botón de mostrar todos los proyectos por si quieren elegir manual
+            CreateWizardButton("Ver Lista de Proyectos", ShowProjects);
         }
 
         public void LoadProjectFromId(long projectId)
@@ -181,24 +208,23 @@ namespace HorizonFaser.UI
             }
 
             var segments = await _repository.FetchProjectSegmentsByIdAsync(project.Id);
-            if (segments == null || segments.Count == 0)
-            {
-                if (welcomeText != null) welcomeText.text = "El proyecto no tiene segmentos.";
-                return;
-            }
             
-            // Calcular centro del proyecto para validación de distancia
+            // 1. Calcular centro del proyecto para validación de distancia (usando segmentos si existen)
             double minLat = double.MaxValue, maxLat = double.MinValue;
             double minLng = double.MaxValue, maxLng = double.MinValue;
             bool hasValidCoords = false;
-            foreach (var seg in segments) {
-                if (seg.Geometry != null) {
-                    foreach (var pt in seg.Geometry) {
-                        if (pt.Latitude < minLat) minLat = pt.Latitude;
-                        if (pt.Latitude > maxLat) maxLat = pt.Latitude;
-                        if (pt.Longitude < minLng) minLng = pt.Longitude;
-                        if (pt.Longitude > maxLng) maxLng = pt.Longitude;
-                        hasValidCoords = true;
+
+            if (segments != null && segments.Count > 0)
+            {
+                foreach (var seg in segments) {
+                    if (seg.Geometry != null) {
+                        foreach (var pt in seg.Geometry) {
+                            if (pt.Latitude < minLat) minLat = pt.Latitude;
+                            if (pt.Latitude > maxLat) maxLat = pt.Latitude;
+                            if (pt.Longitude < minLng) minLng = pt.Longitude;
+                            if (pt.Longitude > maxLng) maxLng = pt.Longitude;
+                            hasValidCoords = true;
+                        }
                     }
                 }
             }
@@ -226,24 +252,35 @@ namespace HorizonFaser.UI
                             welcomeText.color = Color.red;
                         }
                         if (canvas != null) canvas.enabled = true; // Asegurar que sea visible el mensaje
-                        return; // ABORTAR RENDERIZADO
+                        return; // ABORTAR RENDERIZADO POR DISTANCIA
                     }
                 }
             }
 
             if (canvas != null) canvas.enabled = false;
             
+            bool renderedSomething = false;
 
-            _ = HorizonFaser.Renderers.SegmentRenderer.RenderSegmentsCesium(segments, GetComponent<CanvasGroup>(), FindObjectOfType<CesiumForUnity.CesiumGeoreference>(), _repository);
+            // 2. Renderizar Segmentos (si hay)
+            if (segments != null && segments.Count > 0)
+            {
+                _ = HorizonFaser.Renderers.SegmentRenderer.RenderSegmentsCesium(segments, GetComponent<CanvasGroup>(), FindObjectOfType<CesiumForUnity.CesiumGeoreference>(), _repository);
+                renderedSomething = true;
+            }
+            else
+            {
+                Debug.Log($"[Dashboard] Proyecto {project.Id} no tiene segmentos.");
+            }
 
             try
             {
-                var clusters = await _repository.FetchClusterByProjectIdAsync(project.Id);
-                HorizonFaser.Renderers.NodeRenderer.RenderPopsAndNvtsCesium(clusters, FindObjectOfType<CesiumForUnity.CesiumGeoreference>());
+                var pops = await _repository.FetchProjectPopsAsync(project.Id);
+                var nvts = await _repository.FetchProjectNetzverteilersAsync(project.Id);
+                HorizonFaser.Renderers.NodeRenderer.RenderPopsAndNvtsCesium(pops, nvts, FindObjectOfType<CesiumForUnity.CesiumGeoreference>());
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[Cesium] No se pudieron cargar los clusters/POPs: {ex.Message}");
+                Debug.LogWarning($"[Cesium] No se pudieron cargar los POPs o NVTs: {ex.Message}");
             }
 
             try
