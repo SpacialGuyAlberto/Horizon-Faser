@@ -11,7 +11,11 @@ namespace HorizonFaser.Renderers
         {
             if (georeference == null) return;
 
-            GameObject nodesParent = new GameObject("Cesium_Nodes_Project6");
+            // Remove nodes from a previous render (e.g. switching projects)
+            var oldParent = georeference.transform.Find("Cesium_Nodes");
+            if (oldParent != null) UnityEngine.Object.Destroy(oldParent.gameObject);
+
+            GameObject nodesParent = new GameObject("Cesium_Nodes");
             nodesParent.transform.SetParent(georeference.transform, false);
 
             Material popMaterial = new Material(Shader.Find("Unlit/Color"));
@@ -27,6 +31,11 @@ namespace HorizonFaser.Renderers
             {
                 foreach (var pop in pops)
                 {
+                    if (pop.Latitude == 0 && pop.Longitude == 0)
+                    {
+                        Debug.LogWarning($"[Cesium] POP {pop.Id} has no coordinates, skipping.");
+                        continue;
+                    }
                     GameObject popPrefab = Resources.Load<GameObject>("Models/POP/Meshy_AI_pop_shelter_3d_1001095043_image-to-3d-texture");
                     GameObject popObj;
                     
@@ -87,6 +96,11 @@ namespace HorizonFaser.Renderers
             {
                 foreach (var nvt in nvts)
                 {
+                    if (nvt.Latitude == 0 && nvt.Longitude == 0)
+                    {
+                        Debug.LogWarning($"[Cesium] NVT {nvt.Id} has no coordinates, skipping.");
+                        continue;
+                    }
                     GameObject nvtPrefab = Resources.Load<GameObject>("Models/Meshy_Ai_street_cabinet/Meshy_AI_street_cabinet_3d_1001093310_image-to-3d-texture");
                     GameObject nvtObj;
                     

@@ -223,6 +223,12 @@ namespace HorizonFaser.Repositories
             return JsonConvert.DeserializeObject<Netzverteiler>(json);
         }
 
+        private static readonly JsonSerializerSettings NullTolerantSettings = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            MissingMemberHandling = MissingMemberHandling.Ignore
+        };
+
         public async Task<List<Netzverteiler>> FetchProjectNetzverteilersAsync(long projectId)
         {
             string cacheKey = $"netzverteilers_project_{projectId}";
@@ -232,12 +238,15 @@ namespace HorizonFaser.Repositories
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
                 SaveCache(cacheKey, json);
-                return JsonConvert.DeserializeObject<List<Netzverteiler>>(json);
+                var nvts = JsonConvert.DeserializeObject<List<Netzverteiler>>(json, NullTolerantSettings);
+                Debug.Log($"[QuarkBauRemoteRepository] Project {projectId}: {nvts?.Count ?? 0} NVTs received.");
+                return nvts;
             }
             catch (Exception ex)
             {
                 var cachedJson = LoadCache(cacheKey);
-                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Netzverteiler>>(cachedJson);
+                Debug.LogWarning($"[QuarkBauRemoteRepository] NVT fetch failed for project {projectId}: {ex.Message}");
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Netzverteiler>>(cachedJson, NullTolerantSettings);
                 throw;
             }
         }
@@ -251,12 +260,15 @@ namespace HorizonFaser.Repositories
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
                 SaveCache(cacheKey, json);
-                return JsonConvert.DeserializeObject<List<Pop>>(json);
+                var pops = JsonConvert.DeserializeObject<List<Pop>>(json, NullTolerantSettings);
+                Debug.Log($"[QuarkBauRemoteRepository] Project {projectId}: {pops?.Count ?? 0} POPs received.");
+                return pops;
             }
             catch (Exception ex)
             {
                 var cachedJson = LoadCache(cacheKey);
-                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Pop>>(cachedJson);
+                Debug.LogWarning($"[QuarkBauRemoteRepository] POP fetch failed for project {projectId}: {ex.Message}");
+                if (!string.IsNullOrEmpty(cachedJson)) return JsonConvert.DeserializeObject<List<Pop>>(cachedJson, NullTolerantSettings);
                 throw;
             }
         }
