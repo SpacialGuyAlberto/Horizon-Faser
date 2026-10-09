@@ -286,7 +286,7 @@ namespace HorizonFaser.Network
             // Fondo Oscuro Industrial
             UnityEngine.UI.Image bgImage = toastObj.AddComponent<UnityEngine.UI.Image>();
             bgImage.color = new Color(0.086f, 0.090f, 0.102f, 0.98f); // #16171a
-            bgImage.sprite = HorizonFaser.UI.NodeInfoCardUI.GetRoundedSprite();
+            bgImage.sprite = HorizonFaser.UI.UISpriteFactory.GetRoundedSprite();
             bgImage.type = UnityEngine.UI.Image.Type.Sliced;
 
             // Borde Cristalino
@@ -294,7 +294,7 @@ namespace HorizonFaser.Network
             borderObj.transform.SetParent(toastObj.transform, false);
             UnityEngine.UI.Image borderImage = borderObj.AddComponent<UnityEngine.UI.Image>();
             borderImage.color = new Color(1f, 1f, 1f, 0.15f);
-            borderImage.sprite = HorizonFaser.UI.NodeInfoCardUI.GetRoundedSprite();
+            borderImage.sprite = HorizonFaser.UI.UISpriteFactory.GetRoundedSprite();
             borderImage.type = UnityEngine.UI.Image.Type.Sliced;
             RectTransform borderRt = borderObj.GetComponent<RectTransform>();
             borderRt.anchorMin = Vector2.zero; borderRt.anchorMax = Vector2.one;
@@ -321,7 +321,7 @@ namespace HorizonFaser.Network
             badgeObj.transform.SetParent(toastObj.transform, false);
             UnityEngine.UI.Image badgeBg = badgeObj.AddComponent<UnityEngine.UI.Image>();
             badgeBg.color = new Color(0.23f, 0.51f, 0.96f, 0.2f); // Azul translúcido
-            badgeBg.sprite = HorizonFaser.UI.NodeInfoCardUI.GetRoundedSprite();
+            badgeBg.sprite = HorizonFaser.UI.UISpriteFactory.GetRoundedSprite();
             badgeBg.type = UnityEngine.UI.Image.Type.Sliced;
             RectTransform badgeRt = badgeObj.GetComponent<RectTransform>();
             badgeRt.anchorMin = new Vector2(1, 1); badgeRt.anchorMax = new Vector2(1, 1);
@@ -414,7 +414,7 @@ namespace HorizonFaser.Network
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one;
             bgRt.sizeDelta = Vector2.zero;
-            bgImage.sprite = HorizonFaser.UI.NodeInfoCardUI.GetRoundedSprite(); // Reutiliza el sprite redondeado
+            bgImage.sprite = HorizonFaser.UI.UISpriteFactory.GetRoundedSprite(); // Reutiliza el sprite redondeado
             bgImage.type = UnityEngine.UI.Image.Type.Sliced;
 
             // Borde cristalino
