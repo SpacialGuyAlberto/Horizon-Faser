@@ -134,7 +134,7 @@ namespace HorizonFaser.XR
             if (infoCardUI != null)
             {
                 string typeStr = nodeType.ToString();
-                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, transform.position, assignedCrew, assignedMachine, segmentId);
+                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, transform.position, assignedCrew, assignedMachine, segmentId, this.gameObject);
                 Debug.Log($"[NetworkNode] Clic/Interacción detectado en: {typeStr} - {nodeName} (SegId: {segmentId})");
             }
         }

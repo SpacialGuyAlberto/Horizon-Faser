@@ -19,7 +19,7 @@ namespace HorizonFaser.UI
         public TextMeshProUGUI statusText;
 
         [Header("Configuration")]
-        public string serverUrl = "http://192.168.178.57:8080"; 
+        public string serverUrl = "http://fedora.fritz.box:8080"; 
         public GameObject dashboardUI; 
         
         // Dependencia inyectada para el acceso a datos
@@ -29,7 +29,7 @@ namespace HorizonFaser.UI
         {
             // Restaurar el "hardcode" temporal porque el Inspector de Unity
             // puede tener guardada la URL antigua ("https://tu-servidor.com").
-            serverUrl = "http://192.168.178.57:8080";
+            serverUrl = "http://fedora.fritz.box:8080";
 
             _repository = new QuarkBauRemoteRepository();
             _repository.Configure(serverUrl, "");

@@ -87,7 +87,7 @@ namespace HorizonFaser.Renderers
                     );
 
                     var popAnchor = popObj.AddComponent<CesiumGlobeAnchor>();
-                    popAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(pop.Longitude, pop.Latitude, 0);
+                    popAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(pop.Longitude, pop.Latitude, georeference.height);
                     popCount++;
                 }
             }
@@ -152,7 +152,7 @@ namespace HorizonFaser.Renderers
                     );
 
                     var nvtAnchor = nvtObj.AddComponent<CesiumGlobeAnchor>();
-                    nvtAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(nvt.Longitude, nvt.Latitude, 0); 
+                    nvtAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(nvt.Longitude, nvt.Latitude, georeference.height);
                     nvtCount++;
                 }
             }
