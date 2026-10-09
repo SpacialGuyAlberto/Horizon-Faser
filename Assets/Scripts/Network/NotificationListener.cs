@@ -18,8 +18,8 @@ namespace HorizonFaser.Network
     public class NotificationListener : MonoBehaviour
     {
         [Header("Backend Config")]
-        public string sseEndpointUrl = "http://fedora.fritz.box:8080/api/notifications/stream";
-        public string foremanId = "123"; // ID del capataz actual
+        public string sseEndpointUrl = "http://192.168.178.57:8080/api/notifications/stream";
+        public string foremanId = "1"; // ID del capataz actual
         
         [Header("UI & Visuals")]
         public GameObject excavationIcon;
@@ -38,6 +38,8 @@ namespace HorizonFaser.Network
             Debug.Log("[Network] NetworkManager auto-creado e inicializado.");
         }
         
+        private UnityEngine.UI.Text debugText;
+
         private void Start()
         {
             // Busca los iconos automáticamente en la escena por su nombre (si no han sido asignados)
@@ -45,66 +47,169 @@ namespace HorizonFaser.Network
             if (ductIcon == null) ductIcon = GameObject.Find("DuctIcon");
             if (completedIcon == null) completedIcon = GameObject.Find("CompletedIcon");
 
-            fontUI = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            fontUI = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            StartCoroutine(ConnectToSSE());
+            CreateDebugLogUI();
+            LogToXR("Iniciando NotificationListener...");
+            
+            try 
+            {
+                StartSSEClient();
+            } 
+            catch (Exception e) 
+            {
+                LogToXR("ERROR FATAL AL INICIAR: " + e.Message);
+                LogToXR(e.StackTrace);
+            }
         }
 
-        private IEnumerator ConnectToSSE()
+        private void CreateDebugLogUI()
         {
-            using (UnityWebRequest request = UnityWebRequest.Get(sseEndpointUrl + "?userId=" + foremanId))
+            GameObject debugCanvas = new GameObject("XRDebugCanvas");
+            Canvas canvas = debugCanvas.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            
+            Camera mainCam = Camera.main;
+            if (mainCam == null) mainCam = UnityEngine.Object.FindFirstObjectByType<Camera>();
+            if (mainCam != null)
             {
-                // Descargar el stream a medida que llega
-                request.downloadHandler = new DownloadHandlerBuffer();
-                request.SendWebRequest();
+                debugCanvas.transform.SetParent(mainCam.transform, false);
+                debugCanvas.transform.localPosition = new Vector3(0, -0.4f, 1.2f); // Abajo en el centro
+                debugCanvas.transform.localRotation = Quaternion.identity;
+            }
+            
+            debugCanvas.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 400);
+            debugCanvas.transform.localScale = Vector3.one * 0.001f;
 
-                int lastIndex = 0;
-                while (!request.isDone)
-                {
-                    if (request.downloadHandler.text != null && request.downloadHandler.text.Length > lastIndex)
-                    {
-                        string newData = request.downloadHandler.text.Substring(lastIndex);
-                        lastIndex = request.downloadHandler.text.Length;
-                        
-                        ProcessEvent(newData);
-                    }
-                    yield return null;
-                }
+            GameObject textObj = new GameObject("Text");
+            textObj.transform.SetParent(debugCanvas.transform, false);
+            debugText = textObj.AddComponent<UnityEngine.UI.Text>();
+            debugText.font = fontUI;
+            debugText.fontSize = 14;
+            debugText.color = Color.green;
+            debugText.alignment = TextAnchor.LowerLeft;
+            
+            RectTransform rt = textObj.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.sizeDelta = Vector2.zero;
+        }
 
-                if (request.result != UnityWebRequest.Result.Success)
+        private void LogToXR(string message)
+        {
+            Debug.Log("[XR LOG] " + message);
+            if (debugText != null)
+            {
+                debugText.text += "\n" + message;
+                // Mantener solo las últimas 10 líneas
+                string[] lines = debugText.text.Split('\n');
+                if (lines.Length > 10)
                 {
-                    Debug.LogError("Error en conexión de notificaciones: " + request.error);
-                    // Lógica de reconexión (Backoff) iría aquí
-                    yield return new WaitForSeconds(5f);
-                    StartCoroutine(ConnectToSSE());
+                    debugText.text = string.Join("\n", lines, lines.Length - 10, 10);
                 }
             }
         }
 
-        private void ProcessEvent(string rawData)
+        private System.Collections.Generic.Queue<Action> _mainThreadActions = new System.Collections.Generic.Queue<Action>();
+
+        private void Update()
         {
-            // En un caso real, procesaríamos las líneas "data: {json}" del estándar SSE.
-            if (rawData.Contains("data:"))
+            lock (_mainThreadActions)
             {
+                while (_mainThreadActions.Count > 0)
+                {
+                    _mainThreadActions.Dequeue().Invoke();
+                }
+            }
+        }
+
+        private void EnqueueMainThread(Action action)
+        {
+            lock (_mainThreadActions)
+            {
+                _mainThreadActions.Enqueue(action);
+            }
+        }
+
+        private void StartSSEClient()
+        {
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                string url = sseEndpointUrl + "?userId=" + foremanId;
+                EnqueueMainThread(() => LogToXR("Conectando SSE nativo: " + url));
+                
                 try 
                 {
-                    // Limpiamos el texto para obtener solo el JSON
-                    string json = rawData.Replace("data: ", "").Trim();
-                    SegmentNotification notification = JsonUtility.FromJson<SegmentNotification>(json);
-                    
-                    if (notification != null)
+                    using (var client = new System.Net.Http.HttpClient())
                     {
-                        UpdateVisuals(notification);
+                        client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+                        client.DefaultRequestHeaders.Add("Accept", "text/event-stream");
+                        
+                        EnqueueMainThread(() => LogToXR("Enviando HTTP GET..."));
+                        using (var response = await client.GetAsync(url, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
+                        {
+                            response.EnsureSuccessStatusCode();
+                            EnqueueMainThread(() => LogToXR("¡Conectado 200 OK! Leyendo..."));
+                            
+                            using (var stream = await response.Content.ReadAsStreamAsync())
+                            using (var reader = new System.IO.StreamReader(stream))
+                            {
+                                while (!reader.EndOfStream)
+                                {
+                                    string line = await reader.ReadLineAsync();
+                                    if (!string.IsNullOrEmpty(line))
+                                    {
+                                        EnqueueMainThread(() => ProcessEvent(line));
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
+                } 
                 catch (Exception e)
                 {
-                    Debug.LogWarning("Error parseando notificación: " + e.Message);
+                    EnqueueMainThread(() => LogToXR("Error red: " + e.Message));
+                    await System.Threading.Tasks.Task.Delay(5000);
+                    StartSSEClient(); // Reintentar
+                }
+            });
+        }
+
+        private void ProcessEvent(string rawEvent)
+        {
+            LogToXR("Procesando Evento...");
+            string[] lines = rawEvent.Split('\n');
+            foreach (var line in lines)
+            {
+                string tLine = line.Trim();
+                if (tLine.StartsWith("data:"))
+                {
+                    try 
+                    {
+                        string json = tLine.Substring(5).Trim();
+                        if (!json.StartsWith("{")) 
+                        {
+                            LogToXR("Ignorando payload no-JSON: " + json);
+                            continue;
+                        }
+
+                        SegmentNotification notification = JsonUtility.FromJson<SegmentNotification>(json);
+                        
+                        if (notification != null && !string.IsNullOrEmpty(notification.title))
+                        {
+                            LogToXR("¡Notificación parseada! -> " + notification.title);
+                            UpdateVisuals(notification);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        LogToXR("Excepción JSON: " + e.Message);
+                        Debug.LogWarning("Error parseando notificación: " + e.Message);
+                    }
                 }
             }
         }
 
-        private void UpdateVisuals(SegmentNotification notification)
+        public void UpdateVisuals(SegmentNotification notification)
         {
             Debug.Log($"[HUD AR] Nueva notificación: {notification.body}");
             
@@ -140,6 +245,9 @@ namespace HorizonFaser.Network
 
         private void ShowGlobalToast(SegmentNotification notification)
         {
+            Camera mainCam = Camera.main;
+            if (mainCam == null) mainCam = UnityEngine.Object.FindFirstObjectByType<Camera>();
+
             // Canvas global persistente
             GameObject canvasObj = GameObject.Find("GlobalToastCanvas");
             if (canvasObj == null)
@@ -147,10 +255,21 @@ namespace HorizonFaser.Network
                 canvasObj = new GameObject("GlobalToastCanvas");
                 DontDestroyOnLoad(canvasObj);
                 Canvas canvas = canvasObj.AddComponent<Canvas>();
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                canvas.sortingOrder = 999; // Siempre al frente
-                canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>().uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                canvas.renderMode = RenderMode.WorldSpace;
+                
+                RectTransform rt = canvasObj.GetComponent<RectTransform>();
+                rt.sizeDelta = new Vector2(400, 300);
+                canvasObj.transform.localScale = Vector3.one * 0.001f; // Escala XR
+                
+                canvasObj.AddComponent<BillboardUI>(); // Hace que siempre mire al usuario
                 canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+            }
+
+            // Reposicionar el Canvas justo en frente del usuario cada vez que sale una notificación
+            if (mainCam != null)
+            {
+                canvasObj.transform.position = mainCam.transform.position + mainCam.transform.forward * 1.5f; // 1.5 metros adelante
+                // La rotación será manejada por BillboardUI automáticamente
             }
 
             // Contenedor del Toast animado
@@ -158,7 +277,7 @@ namespace HorizonFaser.Network
             toastObj.transform.SetParent(canvasObj.transform, false);
             
             RectTransform toastRt = toastObj.AddComponent<RectTransform>();
-            toastRt.anchorMin = new Vector2(0.5f, 1f); // Arriba al centro
+            toastRt.anchorMin = new Vector2(0.5f, 1f); 
             toastRt.anchorMax = new Vector2(0.5f, 1f);
             toastRt.pivot = new Vector2(0.5f, 1f);
             toastRt.sizeDelta = new Vector2(400, 100);
@@ -208,14 +327,14 @@ namespace HorizonFaser.Network
             badgeRt.anchorMin = new Vector2(1, 1); badgeRt.anchorMax = new Vector2(1, 1);
             badgeRt.pivot = new Vector2(1, 1);
             badgeRt.anchoredPosition = new Vector2(-20, -18);
-            badgeRt.sizeDelta = new Vector2(60, 20);
+            badgeRt.sizeDelta = new Vector2(100, 30); // Agrandado
 
             GameObject badgeTextObj = new GameObject("BadgeText");
             badgeTextObj.transform.SetParent(badgeObj.transform, false);
             UnityEngine.UI.Text bText = badgeTextObj.AddComponent<UnityEngine.UI.Text>();
             bText.font = fontUI;
             bText.text = "UPDATE";
-            bText.fontSize = 10;
+            bText.fontSize = 16; // Texto más grande
             bText.fontStyle = FontStyle.Bold;
             bText.color = new Color(0.4f, 0.65f, 1f); // Azul claro
             bText.alignment = TextAnchor.MiddleCenter;
@@ -356,5 +475,6 @@ namespace HorizonFaser.Network
             // Destruir después de 10 segundos
             Destroy(canvasObj, 10f);
         }
+
     }
 }

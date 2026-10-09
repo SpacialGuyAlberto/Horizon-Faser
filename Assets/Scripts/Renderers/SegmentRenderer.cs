@@ -40,6 +40,16 @@ namespace HorizonFaser.Renderers
                 }
             }
 
+            double? dbElevation = null;
+            foreach (var seg in segments)
+            {
+                if (seg.Geometry != null && seg.Geometry.Count > 0 && seg.Geometry[0].AltitudeZ.HasValue)
+                {
+                    dbElevation = seg.Geometry[0].AltitudeZ.Value;
+                    break;
+                }
+            }
+
             // Intentar obtener las coordenadas desde el broadcast UDP del teléfono
             var companionListener = UnityEngine.Object.FindFirstObjectByType<HorizonFaser.Sensors.ARCompanionListener>();
             
@@ -48,15 +58,15 @@ namespace HorizonFaser.Renderers
                 // Requerimiento: Usar la georreferencia del broadcast de la app en Android
                 georeference.latitude = companionListener.latestData.lat;
                 georeference.longitude = companionListener.latestData.lng;
-                georeference.height = companionListener.latestData.alt > 0 ? companionListener.latestData.alt : 0;
-                Debug.Log($"[Cesium] SegmentRenderer usa georreferencia del Teléfono (UDP): Lat {georeference.latitude}, Lng {georeference.longitude}");
+                georeference.height = dbElevation.HasValue ? dbElevation.Value : (companionListener.latestData.alt > 0 ? companionListener.latestData.alt : 0);
+                Debug.Log($"[Cesium] SegmentRenderer usa georreferencia del Teléfono (UDP): Lat {georeference.latitude}, Lng {georeference.longitude}, Alt {georeference.height}");
             }
             else if (hasValidCoords)
             {
                 // Fallback: Si no hay teléfono conectado o no hay GPS, usar el centro de los segmentos
                 georeference.longitude = (minLng + maxLng) / 2.0;
                 georeference.latitude = (minLat + maxLat) / 2.0;
-                georeference.height = 0;
+                georeference.height = dbElevation.HasValue ? dbElevation.Value : 0;
                 Debug.LogWarning("[Cesium] SegmentRenderer usa georreferencia promediada (Fallback).");
             }
 
@@ -79,7 +89,7 @@ namespace HorizonFaser.Renderers
                     GameObject tempAnchor = new GameObject("TempAnchor");
                     tempAnchor.transform.SetParent(segmentsParent.transform, false);
                     var globeAnchor = tempAnchor.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, 0);
+                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, p.AltitudeZ.HasValue ? p.AltitudeZ.Value : georeference.height);
                     tempPositions.Add(tempAnchor.transform.position);
                     UnityEngine.Object.Destroy(tempAnchor);
                 }
@@ -105,12 +115,12 @@ namespace HorizonFaser.Renderers
                     GameObject anchorObjA = new GameObject($"Seg_{segment.Id}_A_{i}");
                     anchorObjA.transform.SetParent(segmentsParent.transform, false);
                     var globeAnchorA = anchorObjA.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchorA.longitudeLatitudeHeight = new Unity.Mathematics.double3(pA.Longitude, pA.Latitude, 0);
+                    globeAnchorA.longitudeLatitudeHeight = new Unity.Mathematics.double3(pA.Longitude, pA.Latitude, pA.AltitudeZ.HasValue ? pA.AltitudeZ.Value : georeference.height);
 
                     GameObject anchorObjB = new GameObject($"Seg_{segment.Id}_B_{i}");
                     anchorObjB.transform.SetParent(segmentsParent.transform, false);
                     var globeAnchorB = anchorObjB.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchorB.longitudeLatitudeHeight = new Unity.Mathematics.double3(pB.Longitude, pB.Latitude, 0);
+                    globeAnchorB.longitudeLatitudeHeight = new Unity.Mathematics.double3(pB.Longitude, pB.Latitude, pB.AltitudeZ.HasValue ? pB.AltitudeZ.Value : georeference.height);
 
                     Vector3 posA = anchorObjA.transform.position;
                     Vector3 posB = anchorObjB.transform.position;

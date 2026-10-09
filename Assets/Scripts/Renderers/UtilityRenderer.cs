@@ -32,7 +32,7 @@ namespace HorizonFaser.Renderers
                     GameObject tempAnchor = new GameObject("TempAnchor");
                     tempAnchor.transform.SetParent(utilsParent.transform, false);
                     var globeAnchor = tempAnchor.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
-                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, 0);
+                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, p.AltitudeZ.HasValue ? p.AltitudeZ.Value : georeference.height);
                     tempPositions.Add(tempAnchor.transform.position);
                     UnityEngine.Object.Destroy(tempAnchor);
                 }
@@ -58,12 +58,12 @@ namespace HorizonFaser.Renderers
                     GameObject anchorObjA = new GameObject($"Util_{utility.id}_A_{i}");
                     anchorObjA.transform.SetParent(utilsParent.transform, false);
                     var globeAnchorA = anchorObjA.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
-                    globeAnchorA.longitudeLatitudeHeight = new Unity.Mathematics.double3(pA.Longitude, pA.Latitude, 0);
+                    globeAnchorA.longitudeLatitudeHeight = new Unity.Mathematics.double3(pA.Longitude, pA.Latitude, pA.AltitudeZ.HasValue ? pA.AltitudeZ.Value : georeference.height);
 
                     GameObject anchorObjB = new GameObject($"Util_{utility.id}_B_{i}");
                     anchorObjB.transform.SetParent(utilsParent.transform, false);
                     var globeAnchorB = anchorObjB.AddComponent<CesiumForUnity.CesiumGlobeAnchor>();
-                    globeAnchorB.longitudeLatitudeHeight = new Unity.Mathematics.double3(pB.Longitude, pB.Latitude, 0);
+                    globeAnchorB.longitudeLatitudeHeight = new Unity.Mathematics.double3(pB.Longitude, pB.Latitude, pB.AltitudeZ.HasValue ? pB.AltitudeZ.Value : georeference.height);
 
                     Vector3 posA = anchorObjA.transform.position;
                     Vector3 posB = anchorObjB.transform.position;

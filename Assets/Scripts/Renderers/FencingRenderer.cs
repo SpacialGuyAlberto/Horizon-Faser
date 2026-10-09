@@ -23,19 +23,19 @@ namespace HorizonFaser.Renderers
                 foreach (var element in plan.elements)
                 {
                     string resourcePath = "";
-                    Vector3 scale = new Vector3(3000f, 3000f, 3000f); // Default scale (Cone)
+                    Vector3 scale = new Vector3(1000f, 1000f, 1000f); // Default scale (Cone)
                     
                     if (element.elementType == "CONE") 
                         resourcePath = "Models/Fencing/cono/Meshy_AI_traffic_cone_leitkege_1004105134_image-to-3d-texture_fbx/Meshy_AI_traffic_cone_leitkege_1004105134_image-to-3d-texture";
                     else if (element.elementType == "BARRIER")
                     {
                         resourcePath = "Models/Fencing/fence/Meshy_AI_construction_barrier__1004103924_image-to-3d-texture_fbx/Meshy_AI_construction_barrier__1004103924_image-to-3d-texture";
-                        scale = new Vector3(20000f, 20000f, 20000f);
+                        scale = new Vector3(1500f, 1500f, 1500f);
                     }
                     else if (element.elementType == "TRAFFIC_LIGHT" || element.elementType == "SIGN_STOP")
                     {
                         resourcePath = "Models/Fencing/traffic-light/Meshy_AI_construction_traffic__1004104811_image-to-3d-texture_fbx/Meshy_AI_construction_traffic__1004104811_image-to-3d-texture";
-                        scale = new Vector3(10000f, 10000f, 10000f);
+                        scale = new Vector3(3000f, 3000f, 3000f);
                     }
 
                     if (string.IsNullOrEmpty(resourcePath)) continue;
@@ -106,7 +106,16 @@ namespace HorizonFaser.Renderers
 
                         Debug.Log($"[Fencing] {element.elementType} tiene {rendererCount} renderers. Tamaño real (bounds): {bounds.size.x} x {bounds.size.y} x {bounds.size.z}");
 
-                        // Elementos puramente visuales. Sin colliders ni físicas para que no bloqueen el láser de selección de los nodos y segmentos.
+                        // Permitir al usuario ocultar las fences
+                        foreach (var renderer in fencingObj.GetComponentsInChildren<Renderer>())
+                        {
+                            if (renderer.gameObject.GetComponent<Collider>() == null)
+                            {
+                                renderer.gameObject.AddComponent<MeshCollider>().convex = true;
+                            }
+                        }
+                        
+                        fencingObj.AddComponent<HorizonFaser.XR.HideableElement>();
                     }
                     else
                     {

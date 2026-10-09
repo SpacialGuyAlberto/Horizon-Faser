@@ -120,6 +120,9 @@ namespace HorizonFaser.UI
         public Machine AssignedMachine;
         private bool _showingAdvancedInfo = false;
         private long _currentSegmentId = -1;
+        
+        private GameObject _currentTargetNode;
+        private Button _hideButton;
 
         private void Awake()
         {
@@ -209,12 +212,13 @@ namespace HorizonFaser.UI
             }
         }
 
-        public void ShowCard(string nodeType, string nodeName, string details, Vector3 spawnPosition, Crew crew = null, Machine machine = null, long segmentId = -1)
+        public void ShowCard(string nodeType, string nodeName, string details, Vector3 spawnPosition, Crew crew = null, Machine machine = null, long segmentId = -1, GameObject targetNode = null)
         {
             IsAnyCardOpen = true;
             gameObject.SetActive(true);
             
             _currentSegmentId = segmentId;
+            _currentTargetNode = targetNode;
 
             if (titleText != null) titleText.text = nodeName;
             if (typeText != null) typeText.text = nodeType.ToUpper();
@@ -238,6 +242,24 @@ namespace HorizonFaser.UI
             if (permitButton != null)
             {
                 permitButton.gameObject.SetActive(nodeType.Contains("Segmento") || nodeType.Contains("SEGMENTO"));
+            }
+
+            if (_hideButton == null && permitButton != null)
+            {
+                _hideButton = Instantiate(permitButton, permitButton.transform.parent);
+                _hideButton.gameObject.name = "HideButton";
+                var txt = _hideButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (txt != null) txt.text = "OCULTAR";
+                _hideButton.onClick.RemoveAllListeners();
+                _hideButton.onClick.AddListener(OnHideNodeClicked);
+                
+                // Colorize the hide button specifically if needed, maybe dark gray or red
+                var bg = _hideButton.GetComponent<Image>();
+                if (bg != null) bg.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            }
+            if (_hideButton != null)
+            {
+                _hideButton.gameObject.SetActive(_currentTargetNode != null);
             }
 
             // Reset size
@@ -276,6 +298,16 @@ namespace HorizonFaser.UI
 
         private static GameObject _detailsPopup;
         private static RawImage _popupImage;
+
+        public void OnHideNodeClicked()
+        {
+            if (_currentTargetNode != null)
+            {
+                _currentTargetNode.SetActive(false);
+                HideCard();
+                Debug.Log("[NodeInfoCardUI] Nodo ocultado por el usuario.");
+            }
+        }
 
         public void OnCrewButtonClicked()
         {

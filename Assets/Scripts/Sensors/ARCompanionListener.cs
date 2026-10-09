@@ -18,6 +18,11 @@ namespace HorizonFaser.Sensors
         public double accuracy;
         public string timestamp;
         public long projectId;
+        
+        public string notificationTitle;
+        public string notificationBody;
+        public string notificationEntityId;
+        public string notificationId;
     }
 
     public class ARCompanionListener : MonoBehaviour
@@ -113,6 +118,7 @@ namespace HorizonFaser.Sensors
         }
 
         private long _currentProjectId = -1;
+        private string _lastProcessedNotificationId = "";
 
         private void ProcessData(ARCompanionData data)
         {
@@ -133,14 +139,31 @@ namespace HorizonFaser.Sensors
                 }
             }
 
+            if (!string.IsNullOrEmpty(data.notificationTitle) && !string.IsNullOrEmpty(data.notificationId) && data.notificationId != _lastProcessedNotificationId)
+            {
+                _lastProcessedNotificationId = data.notificationId;
+                var notifListener = FindFirstObjectByType<HorizonFaser.Network.NotificationListener>();
+                if (notifListener != null)
+                {
+                    HorizonFaser.Network.SegmentNotification notif = new HorizonFaser.Network.SegmentNotification
+                    {
+                        title = data.notificationTitle,
+                        body = data.notificationBody,
+                        entityId = data.notificationEntityId,
+                        channel = "UDP_BRIDGE"
+                    };
+                    notifListener.UpdateVisuals(notif);
+                }
+            }
+
             if (autoUpdateGeoreference && georeference != null && data.accuracy < 10.0) // solo si es preciso
             {
                 // Align world origin with current GPS position
                 georeference.latitude = data.lat;
                 georeference.longitude = data.lng;
                 
-                // Nota: la altura (alt) a veces no es precisa, podríamos mantener height = 0
-                georeference.height = data.alt;
+                // Ignorar data.alt para forzar al usuario a aparecer al nivel del terreno de la DB
+                // georeference.height = data.alt;
             }
         }
 
