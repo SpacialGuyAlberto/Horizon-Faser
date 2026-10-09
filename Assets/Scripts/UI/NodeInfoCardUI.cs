@@ -348,9 +348,9 @@ namespace HorizonFaser.UI
                 bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // Loading color
 
 #if UNITY_EDITOR
-                string baseUrl = "http://localhost:8080";
+                string baseUrl = "http://fedora.fritz.box:8080";
 #else
-                string baseUrl = "http://192.168.178.57:8080";
+                string baseUrl = "http://fedora.fritz.box:8080";
 #endif
                 string url = $"{baseUrl}/api/v1/segments/{segmentId}/permits";
                 
@@ -435,7 +435,7 @@ namespace HorizonFaser.UI
 #if !UNITY_EDITOR
                     if (!string.IsNullOrEmpty(_currentPdfUrl))
                     {
-                        _currentPdfUrl = _currentPdfUrl.Replace("localhost", "192.168.178.57");
+                        _currentPdfUrl = _currentPdfUrl.Replace("localhost", "fedora.fritz.box");
                     }
 #endif
                     if (!string.IsNullOrEmpty(_currentPdfUrl))
@@ -450,7 +450,7 @@ namespace HorizonFaser.UI
 #if UNITY_EDITOR
                         // Do nothing, localhost is fine
 #else
-                        imgUrl = imgUrl.Replace("localhost", "192.168.178.57");
+                        imgUrl = imgUrl.Replace("localhost", "fedora.fritz.box");
 #endif
                         Debug.Log("Preview Image URL after replace: " + imgUrl);
                         

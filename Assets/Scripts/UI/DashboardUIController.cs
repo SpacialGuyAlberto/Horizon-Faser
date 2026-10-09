@@ -188,7 +188,7 @@ namespace HorizonFaser.UI
             if (_repository == null)
             {
                 _repository = new Repositories.QuarkBauRemoteRepository();
-                ((Repositories.QuarkBauRemoteRepository)_repository).Configure("http://192.168.178.57:8080", "");
+                ((Repositories.QuarkBauRemoteRepository)_repository).Configure("http://fedora.fritz.box:8080", "");
             }
             
             Debug.Log($"[Dashboard] Loading project {projectId} requested by Mobile App via UDP.");
