@@ -83,207 +83,157 @@ namespace HorizonFaser.Renderers
             {
                 if (segment.Geometry == null || segment.Geometry.Count < 2) continue;
 
-                List<Vector3> tempPositions = new List<Vector3>();
+                // 1. Usar UN SOLO anchor temporal para la conversión matemática, en vez de crear miles.
+                List<Vector3> controlPoints = new List<Vector3>();
+                GameObject tempObj = new GameObject("TempCoordConverter");
+                tempObj.transform.SetParent(segmentsParent.transform, false);
+                var tempAnchor = tempObj.AddComponent<CesiumGlobeAnchor>();
+                
                 foreach (var p in segment.Geometry)
                 {
-                    GameObject tempAnchor = new GameObject("TempAnchor");
-                    tempAnchor.transform.SetParent(segmentsParent.transform, false);
-                    var globeAnchor = tempAnchor.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, p.AltitudeZ.HasValue ? p.AltitudeZ.Value : georeference.height);
-                    tempPositions.Add(tempAnchor.transform.position);
-                    UnityEngine.Object.Destroy(tempAnchor);
+                    tempAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, p.AltitudeZ.HasValue ? p.AltitudeZ.Value : georeference.height);
+                    controlPoints.Add(tempObj.transform.position); // World Space position
                 }
+                UnityEngine.Object.Destroy(tempObj);
 
                 float totalInclination = 0f;
-                float[] stepInclinations = new float[segment.Geometry.Count - 1];
-                
-                for (int i = 0; i < tempPositions.Count - 2; i++)
+                float distance = 0f;
+                for (int i = 0; i < controlPoints.Count - 1; i++)
                 {
-                    Vector3 v1 = (tempPositions[i+1] - tempPositions[i]).normalized;
-                    Vector3 v2 = (tempPositions[i+2] - tempPositions[i+1]).normalized;
-                    float angle = Vector3.Angle(v1, v2);
-                    stepInclinations[i+1] = angle;
-                    totalInclination += angle;
+                    distance += Vector3.Distance(controlPoints[i], controlPoints[i+1]);
+                    if (i < controlPoints.Count - 2)
+                    {
+                        Vector3 v1 = (controlPoints[i+1] - controlPoints[i]).normalized;
+                        Vector3 v2 = (controlPoints[i+2] - controlPoints[i+1]).normalized;
+                        totalInclination += Vector3.Angle(v1, v2);
+                    }
                 }
 
-                for (int i = 0; i < segment.Geometry.Count - 1; i++)
+                // 2. Crear UN SOLO GameObject para TODO el Segmento
+                GameObject segmentObj = new GameObject($"Segment_{segment.Id}");
+                segmentObj.transform.SetParent(segmentsParent.transform, true);
+
+                LineRenderer lineRenderer = segmentObj.AddComponent<LineRenderer>();
+                lineRenderer.useWorldSpace = true; // controlPoints están en World Space
+                lineRenderer.startWidth = 0.5f;
+                lineRenderer.endWidth = 0.5f;
+                lineRenderer.positionCount = controlPoints.Count;
+                lineRenderer.SetPositions(controlPoints.ToArray());
+                lineRenderer.alignment = LineAlignment.View;
+
+                // 3. Material
+                string basePath = "Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture";
+                Material urpMat = PipeMaterialFactory.Get(basePath, segmentMaterial.color, 0.0f, 0.3f);
+                if (urpMat != null)
                 {
-                    var pA = segment.Geometry[i];
-                    var pB = segment.Geometry[i+1];
-                    float currentInclination = stepInclinations[i];
+                    lineRenderer.material = urpMat;
+                    lineRenderer.textureMode = LineTextureMode.Tile;
+                }
+                else
+                {
+                    lineRenderer.material = segmentMaterial;
+                }
 
-                    GameObject anchorObjA = new GameObject($"Seg_{segment.Id}_A_{i}");
-                    anchorObjA.transform.SetParent(segmentsParent.transform, false);
-                    var globeAnchorA = anchorObjA.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchorA.longitudeLatitudeHeight = new Unity.Mathematics.double3(pA.Longitude, pA.Latitude, pA.AltitudeZ.HasValue ? pA.AltitudeZ.Value : georeference.height);
+                // 4. Hitbox Ligero (Cajas separadas para evitar MeshColliders pesados)
+                int colliderStep = Mathf.Max(1, controlPoints.Count / 10); 
+                for (int i = 0; i < controlPoints.Count - 1; i += colliderStep)
+                {
+                    GameObject colObj = new GameObject("Hitbox");
+                    colObj.transform.SetParent(segmentObj.transform, true);
+                    colObj.transform.position = (controlPoints[i] + controlPoints[i+1]) / 2f;
+                    colObj.transform.LookAt(controlPoints[i+1]);
+                    BoxCollider bc = colObj.AddComponent<BoxCollider>();
+                    bc.size = new Vector3(1f, 1f, Vector3.Distance(controlPoints[i], controlPoints[i+1]));
+                }
 
-                    GameObject anchorObjB = new GameObject($"Seg_{segment.Id}_B_{i}");
-                    anchorObjB.transform.SetParent(segmentsParent.transform, false);
-                    var globeAnchorB = anchorObjB.AddComponent<CesiumGlobeAnchor>();
-                    globeAnchorB.longitudeLatitudeHeight = new Unity.Mathematics.double3(pB.Longitude, pB.Latitude, pB.AltitudeZ.HasValue ? pB.AltitudeZ.Value : georeference.height);
-
-                    Vector3 posA = anchorObjA.transform.position;
-                    Vector3 posB = anchorObjB.transform.position;
-
-                    Vector3 centerPos = (posA + posB) / 2f;
-                    float distance = Vector3.Distance(posA, posB);
-                    Vector3 direction = (posB - posA).normalized;
-
-                    GameObject cyl = new GameObject($"Segment_{segment.Id}_Line_{i}");
-                    cyl.transform.SetParent(segmentsParent.transform, true);
-
-                    GameObject ductPrefab = Resources.Load<GameObject>("Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture");
-                    GameObject ductVisual;
-                    
-                    if (ductPrefab != null)
+                // 5. Interaction (Mocking)
+                HorizonFaser.Models.Crew segmentCrew = null;
+                HorizonFaser.Models.Machine segmentMachine = null;
+                if (segment.AssignedCrewId.HasValue)
+                {
+                    segmentCrew = new HorizonFaser.Models.Crew
                     {
-                        ductVisual = UnityEngine.Object.Instantiate(ductPrefab);
-                        ductVisual.transform.SetParent(cyl.transform, false);
+                        Id = segment.AssignedCrewId.Value,
+                        Name = "Tiefbau Kolonne Alpha",
+                        ForemanName = "Hans Mueller",
+                        Size = 4,
+                        VehiclePlate = "B-QB 1024"
+                    };
+
+                    segmentMachine = new HorizonFaser.Models.Machine
+                    {
+                        Id = 1,
+                        SerialNumber = "BKH-993-X",
+                        Name = "Caterpillar 301.8",
+                        Type = "Mini Excavator",
+                        Status = "IN_USE",
+                        AssignedCrewId = segment.AssignedCrewId.Value
+                    };
+                    segmentCrew.AssignedMachines.Add(segmentMachine);
+                }
+
+                HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
+                    segmentObj, 
+                    HorizonFaser.XR.NetworkNodeType.Segmento, 
+                    $"Segmento {segment.Id}", 
+                    $"Longitud: {distance:F1}m\nInclinación total: {totalInclination:F1}°",
+                    segmentCrew,
+                    segmentMachine,
+                    segment.Id
+                );
+
+                // 6. Shovel Icon
+                bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 
+                                  (segment.WorkType.IndexOf("Excavat", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                   segment.WorkType.IndexOf("Trench", StringComparison.OrdinalIgnoreCase) >= 0);
+                                   
+                if (isExcavation && controlPoints.Count > 0) 
+                {
+                    Vector3 midPos = controlPoints[controlPoints.Count / 2];
+
+                    GameObject shovelWrapper = new GameObject($"Shovel_{segment.Id}");
+                    shovelWrapper.transform.SetParent(segmentsParent.transform, true);
+                    shovelWrapper.transform.position = midPos + new Vector3(0, 30f, 0);
+                    
+                    GameObject shovelPrefab = Resources.Load<GameObject>("Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture");
+                    if (shovelPrefab != null)
+                    {
+                        GameObject sVis = UnityEngine.Object.Instantiate(shovelPrefab);
+                        sVis.transform.SetParent(shovelWrapper.transform, false);
+                        sVis.transform.localScale = new Vector3(300f, 300f, 300f); 
                         
-                        MeshFilter mf = ductVisual.GetComponentInChildren<MeshFilter>();
-                        if (mf != null && mf.sharedMesh != null)
-                        {
-                            Vector3 boundsSize = mf.sharedMesh.bounds.size;
-                            float maxAxis = Mathf.Max(boundsSize.x, boundsSize.y, boundsSize.z);
-                            
-                            if (maxAxis == boundsSize.x)
-                            {
-                                ductVisual.transform.localRotation = Quaternion.Euler(0, 0, 90);
-                                float scaleModifier = 2f / boundsSize.x;
-                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
-                            }
-                            else if (maxAxis == boundsSize.z)
-                            {
-                                ductVisual.transform.localRotation = Quaternion.Euler(90, 0, 0);
-                                float scaleModifier = 2f / boundsSize.z;
-                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
-                            }
-                            else
-                            {
-                                float scaleModifier = 2f / boundsSize.y;
-                                ductVisual.transform.localScale = new Vector3(scaleModifier, scaleModifier, scaleModifier);
-                            }
-                        }
+                        string shovelPath = "Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture";
+                        Texture2D sTex = Resources.Load<Texture2D>(shovelPath);
 
-                        string basePath = "Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture";
-                        // Material compartido y anti-parpadeo (smoothness baja = sin destellos especulares)
-                        Material urpMat = PipeMaterialFactory.Get(basePath, segmentMaterial.color, 0.0f, 0.3f);
-
-                        foreach (var r in ductVisual.GetComponentsInChildren<Renderer>())
-                        {
-                            r.sharedMaterial = urpMat;
-                        }
-                    }
-                    else
-                    {
-                        ductVisual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                        ductVisual.transform.SetParent(cyl.transform, false);
-                        ductVisual.GetComponent<MeshRenderer>().material = segmentMaterial;
-                    }
-
-                    BoxCollider box = cyl.AddComponent<BoxCollider>();
-                    box.size = new Vector3(1f, 2f, 1f); 
-                    
-                    var connector = cyl.AddComponent<SegmentConnector>();
-                    connector.PointA = anchorObjA.transform;
-                    connector.PointB = anchorObjB.transform;
-                    connector.Thickness = 0.5f; 
-                    
-                    string inclinacionStr = (i == 0) ? "N/A (Inicio)" : $"{currentInclination:F1}°";
-                    
-                    HorizonFaser.Models.Crew segmentCrew = null;
-                    HorizonFaser.Models.Machine segmentMachine = null;
-
-                    if (segment.AssignedCrewId.HasValue)
-                    {
-                        // Mocking Crew and Machine data for demonstration since we only have the ID
-                        segmentCrew = new HorizonFaser.Models.Crew
-                        {
-                            Id = segment.AssignedCrewId.Value,
-                            Name = "Tiefbau Kolonne Alpha",
-                            ForemanName = "Hans Mueller",
-                            Size = 4,
-                            VehiclePlate = "B-QB 1024"
-                        };
-
-                        segmentMachine = new HorizonFaser.Models.Machine
-                        {
-                            Id = 1,
-                            SerialNumber = "BKH-993-X",
-                            Name = "Caterpillar 301.8",
-                            Type = "Mini Excavator",
-                            Status = "IN_USE",
-                            AssignedCrewId = segment.AssignedCrewId.Value
-                        };
-                        segmentCrew.AssignedMachines.Add(segmentMachine);
-                    }
-
-                    HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
-                        cyl, 
-                        HorizonFaser.XR.NetworkNodeType.Segmento, 
-                        $"Segmento {segment.Id}", 
-                        $"Longitud: {distance:F1}m\nInclinación tramo: {inclinacionStr}\nInclinación total: {totalInclination:F1}°",
-                        segmentCrew,
-                        segmentMachine,
-                        segment.Id
-                    );
-
-                    bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 
-                                      (segment.WorkType.IndexOf("Excavat", StringComparison.OrdinalIgnoreCase) >= 0 || 
-                                       segment.WorkType.IndexOf("Trench", StringComparison.OrdinalIgnoreCase) >= 0);
-                                       
-                    if (isExcavation && (i == segment.Geometry.Count / 2)) 
-                    {
-                        double midLat = (pA.Latitude + pB.Latitude) / 2.0;
-                        double midLon = (pA.Longitude + pB.Longitude) / 2.0;
-
-                        GameObject shovelWrapper = new GameObject($"Shovel_{segment.Id}");
-                        shovelWrapper.transform.SetParent(segmentsParent.transform, false);
-                        var shovelAnchor = shovelWrapper.AddComponent<CesiumGlobeAnchor>();
-                        shovelAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(midLon, midLat, 30.0); 
+                        Material sMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                        if (sTex != null) sMat.mainTexture = sTex;
                         
-                        GameObject shovelPrefab = Resources.Load<GameObject>("Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture");
-                        if (shovelPrefab != null)
+                        sMat.SetFloat("_AlphaClip", 1.0f);
+                        sMat.EnableKeyword("_ALPHATEST_ON");
+                        sMat.SetFloat("_Cutoff", 0.05f); 
+                        
+                        sMat.SetFloat("_Metallic", 0.0f);
+                        sMat.SetFloat("_Smoothness", 0.1f);
+                        
+                        foreach (var r in sVis.GetComponentsInChildren<Renderer>())
                         {
-                            GameObject sVis = UnityEngine.Object.Instantiate(shovelPrefab);
-                            sVis.transform.SetParent(shovelWrapper.transform, false);
-                            sVis.transform.localScale = new Vector3(300f, 300f, 300f); 
-                            
-                            string shovelPath = "Models/ShovelIcon/Meshy_AI_macos_shovel_dirt_ico_1002155123_image-to-3d-texture";
-                            Texture2D sTex = Resources.Load<Texture2D>(shovelPath);
-
-                            Material sMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                            if (sTex != null) sMat.mainTexture = sTex;
-                            
-                            sMat.SetFloat("_AlphaClip", 1.0f);
-                            sMat.EnableKeyword("_ALPHATEST_ON");
-                            sMat.SetFloat("_Cutoff", 0.05f); 
-                            
-                            sMat.SetFloat("_Metallic", 0.0f);
-                            sMat.SetFloat("_Smoothness", 0.1f);
-                            
-                            foreach (var r in sVis.GetComponentsInChildren<Renderer>())
-                            {
-                                r.material = sMat;
-                            }
-                            
-                            var rotator = shovelWrapper.AddComponent<IconRotator>();
-
-                            var gazeScaler = sVis.AddComponent<GazeScaler>();
-                            gazeScaler.baseScale = new Vector3(300f, 300f, 300f); 
-                            gazeScaler.hoverScale = new Vector3(1000f, 1000f, 1000f); 
+                            r.material = sMat;
                         }
+                        
+                        shovelWrapper.AddComponent<IconRotator>();
+
+                        var gazeScaler = sVis.AddComponent<GazeScaler>();
+                        gazeScaler.baseScale = new Vector3(300f, 300f, 300f); 
+                        gazeScaler.hoverScale = new Vector3(1000f, 1000f, 1000f); 
                     }
-                    
-                    totalLines++;
                 }
 
                 FencingRenderer.RenderSegmentFencingAsync(segment, segmentsParent, repository);
-                
-                // --- NUEVO: Renderizar cuadrilla (si corresponde) ---
                 CrewRenderer.RenderCrewOnSegment(segment, segmentsParent);
+                
+                totalLines++;
             }
-            Debug.Log($"[Cesium] Segmentos renderizados con éxito: {totalLines} líneas creadas dinámicamente.");
+            Debug.Log($"[Cesium] Segmentos renderizados con éxito: {totalLines} líneas (LineRenderer Optimizado).");
 
             Camera mainCam = Camera.main;
             if (mainCam != null)
