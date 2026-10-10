@@ -39,6 +39,12 @@ namespace HorizonFaser.Network
         }
         
         private UnityEngine.UI.Text debugText;
+        public static NotificationListener Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null) Instance = this;
+        }
 
         private void Start()
         {
@@ -94,7 +100,7 @@ namespace HorizonFaser.Network
             rt.sizeDelta = Vector2.zero;
         }
 
-        private void LogToXR(string message)
+        public void LogToXR(string message)
         {
             Debug.Log("[XR LOG] " + message);
             if (debugText != null)
@@ -259,7 +265,7 @@ namespace HorizonFaser.Network
                 
                 RectTransform rt = canvasObj.GetComponent<RectTransform>();
                 rt.sizeDelta = new Vector2(400, 300);
-                canvasObj.transform.localScale = Vector3.one * 0.001f; // Escala XR
+                canvasObj.transform.localScale = Vector3.one * 0.00005f; // Reducido 20x
                 
                 canvasObj.AddComponent<BillboardUI>(); // Hace que siempre mire al usuario
                 canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
@@ -404,7 +410,7 @@ namespace HorizonFaser.Network
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 150);
-            canvas.transform.localScale = Vector3.one * 0.0005f; // Reducido 20x
+            canvas.transform.localScale = Vector3.one * 0.000025f; // Reducido x20 de 0.0005f
 
             // Panel de fondo oscuro
             GameObject bgObj = new GameObject("Background");

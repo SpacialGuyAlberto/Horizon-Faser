@@ -23,13 +23,17 @@ namespace HorizonFaser.Sensors
         public string notificationBody;
         public string notificationEntityId;
         public string notificationId;
+        
+        public bool forceCalibration;
+        public double manualRotation;
     }
 
     public class ARCompanionListener : MonoBehaviour
     {
         public int listenPort = 8000;
         public CesiumGeoreference georeference;
-        public bool autoUpdateGeoreference = false;
+        public bool autoUpdateGeoreference = true;
+        private bool hasAlignedOnce = false;
 
         private UdpClient udpClient;
         private Thread receiveThread;
@@ -39,10 +43,13 @@ namespace HorizonFaser.Sensors
         public ARCompanionData latestData;
         private bool hasNewData = false;
         private object dataLock = new object();
+        
+        // Timer for telemetry logging
+        private float lastLogTime = 0f;
 
         void Start()
         {
-            autoUpdateGeoreference = false; // FORZADO: Evitar que Unity lo sobreescriba desde el Inspector
+            autoUpdateGeoreference = true; 
             
             if (georeference == null)
             {
@@ -156,14 +163,61 @@ namespace HorizonFaser.Sensors
                 }
             }
 
-            if (autoUpdateGeoreference && georeference != null && data.accuracy < 10.0) // solo si es preciso
+            // Log telemetry continuously every 2 seconds
+            if (Time.time - lastLogTime > 2f && data != null && data.lat != 0)
             {
+                lastLogTime = Time.time;
+                float camY = 0f;
+                if (Camera.main != null) camY = Camera.main.transform.eulerAngles.y;
+                
+                string msg = $"[TELEMETRIA] Lat:{data.lat:F5} Lng:{data.lng:F5} Brújula:{data.heading:F1} | HeadsetRotY:{camY:F1}";
+                if (HorizonFaser.Network.NotificationListener.Instance != null) {
+                    HorizonFaser.Network.NotificationListener.Instance.LogToXR(msg);
+                }
+            }
+
+            if (data != null && data.forceCalibration)
+            {
+                hasAlignedOnce = false; // Allow recalibration
+            }
+
+            if (autoUpdateGeoreference && !hasAlignedOnce && georeference != null) 
+            {
+                // Align world origin with current GPS position
                 // Align world origin with current GPS position
                 georeference.latitude = data.lat;
                 georeference.longitude = data.lng;
                 
-                // Ignorar data.alt para forzar al usuario a aparecer al nivel del terreno de la DB
-                // georeference.height = data.alt;
+                // CesiumGlobeAnchor ignora la rotación del padre en Unity. 
+                // Para rotar el mundo virtual alrededor del usuario, rotamos el XR Rig (el usuario).
+                if (data.heading > 0 && Camera.main != null)
+                {
+                    float targetCameraY = (float)data.heading - (float)data.manualRotation;
+                    float currentCameraY = Camera.main.transform.eulerAngles.y;
+                    float differenceY = targetCameraY - currentCameraY;
+
+                    // Encontrar el XR Rig (root del player)
+                    Transform xrRig = Camera.main.transform.parent;
+                    while (xrRig != null && xrRig.name != "XR Origin" && xrRig.name != "XR Rig") {
+                        if (xrRig.parent == null) break;
+                        xrRig = xrRig.parent;
+                    }
+                    if (xrRig == null) xrRig = Camera.main.transform.root;
+
+                    // Rotar el Rig alrededor de la posición exacta de la cámara para no desplazar al usuario
+                    xrRig.RotateAround(Camera.main.transform.position, Vector3.up, differenceY);
+
+                    if (HorizonFaser.Network.NotificationListener.Instance != null) {
+                        HorizonFaser.Network.NotificationListener.Instance.LogToXR($"[CALIBRADO] Rig rotado: {differenceY:F1}°. CamY->{targetCameraY:F1}°");
+                    }
+                }
+                
+                hasAlignedOnce = true; // Desactivar para evitar jitter de rotación en cada frame
+                string msg = $"[ALINEADO] Lat:{data.lat:F6} Lng:{data.lng:F6} Head:{data.heading:F1}";
+                Debug.Log(msg);
+                if (HorizonFaser.Network.NotificationListener.Instance != null) {
+                    HorizonFaser.Network.NotificationListener.Instance.LogToXR(msg);
+                }
             }
         }
 
@@ -175,6 +229,10 @@ namespace HorizonFaser.Sensors
                 {
                     georeference.latitude = latestData.lat;
                     georeference.longitude = latestData.lng;
+                    if (latestData.heading > 0)
+                    {
+                        georeference.transform.rotation = Quaternion.Euler(0, -(float)latestData.heading + 225f, 0);
+                    }
                     Debug.Log($"[ARCompanionListener] Georeferencia alineada manualmente a: {latestData.lat}, {latestData.lng}");
                 }
                 else

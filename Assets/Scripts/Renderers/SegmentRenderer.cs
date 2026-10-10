@@ -92,7 +92,7 @@ namespace HorizonFaser.Renderers
                 foreach (var p in segment.Geometry)
                 {
                     tempAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(p.Longitude, p.Latitude, p.AltitudeZ.HasValue ? p.AltitudeZ.Value : georeference.height);
-                    controlPoints.Add(tempObj.transform.position); // World Space position
+                    controlPoints.Add(tempObj.transform.localPosition); // Local Space position
                 }
                 UnityEngine.Object.Destroy(tempObj);
 
@@ -116,10 +116,12 @@ namespace HorizonFaser.Renderers
 
                 // 2. Crear UN SOLO GameObject para TODO el Segmento
                 GameObject segmentObj = new GameObject($"Segment_{segment.Id}");
-                segmentObj.transform.SetParent(segmentsParent.transform, true);
+                segmentObj.transform.SetParent(segmentsParent.transform, false);
+                segmentObj.transform.localPosition = Vector3.zero;
+                segmentObj.transform.localRotation = Quaternion.identity;
 
                 LineRenderer lineRenderer = segmentObj.AddComponent<LineRenderer>();
-                lineRenderer.useWorldSpace = true; // smoothPoints están en World Space
+                lineRenderer.useWorldSpace = false; // smoothPoints están en Local Space de georeference
                 lineRenderer.startWidth = 0.5f;
                 lineRenderer.endWidth = 0.5f;
                 lineRenderer.positionCount = smoothPoints.Count;
@@ -144,9 +146,11 @@ namespace HorizonFaser.Renderers
                 for (int i = 0; i < smoothPoints.Count - 1; i += colliderStep)
                 {
                     GameObject colObj = new GameObject("Hitbox");
-                    colObj.transform.SetParent(segmentObj.transform, true);
-                    colObj.transform.position = (smoothPoints[i] + smoothPoints[i+1]) / 2f;
-                    colObj.transform.LookAt(smoothPoints[i+1]);
+                    colObj.transform.SetParent(segmentObj.transform, false);
+                    colObj.transform.localPosition = (smoothPoints[i] + smoothPoints[i+1]) / 2f;
+                    Vector3 lookDir = (smoothPoints[i+1] - smoothPoints[i]).normalized;
+                    if (lookDir != Vector3.zero) colObj.transform.localRotation = Quaternion.LookRotation(lookDir);
+                    
                     BoxCollider bc = colObj.AddComponent<BoxCollider>();
                     bc.size = new Vector3(1f, 1f, Vector3.Distance(smoothPoints[i], smoothPoints[i+1]));
                 }

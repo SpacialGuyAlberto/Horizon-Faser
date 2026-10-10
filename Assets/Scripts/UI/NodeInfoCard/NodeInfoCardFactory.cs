@@ -45,6 +45,7 @@ namespace HorizonFaser.UI
             loadingText.fontStyle = FontStyles.Bold;
             loadingText.alignment = TextAlignmentOptions.Center;
             loadingText.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+            loadingText.raycastTarget = false;
             RectTransform loadingRT = loadingObj.GetComponent<RectTransform>();
             loadingRT.anchorMin = new Vector2(0.5f, 0.5f); loadingRT.anchorMax = new Vector2(0.5f, 0.5f);
             loadingRT.pivot = new Vector2(0.5f, 0.5f);
@@ -402,6 +403,32 @@ namespace HorizonFaser.UI
             pBtnTextRT.anchorMin = Vector2.zero; pBtnTextRT.anchorMax = Vector2.one;
             pBtnTextRT.sizeDelta = Vector2.zero;
 
+            GameObject hideBtnObj = new GameObject("HideButton");
+            hideBtnObj.transform.SetParent(bgObj.transform, false);
+            Image hideBtnImg = hideBtnObj.AddComponent<Image>();
+            hideBtnImg.sprite = UISpriteFactory.GetPillSprite();
+            hideBtnImg.type = Image.Type.Sliced;
+            hideBtnImg.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            Button hBtn = hideBtnObj.AddComponent<Button>();
+
+            RectTransform hBtnRT = hideBtnObj.GetComponent<RectTransform>();
+            hBtnRT.anchorMin = new Vector2(1, 0); hBtnRT.anchorMax = new Vector2(1, 0);
+            hBtnRT.pivot = new Vector2(1, 0);
+            hBtnRT.anchoredPosition = new Vector2(-20, -30); // Below Permit Button
+            hBtnRT.sizeDelta = new Vector2(120, 40);
+
+            GameObject hBtnTextObj = new GameObject("HBtnText");
+            hBtnTextObj.transform.SetParent(hideBtnObj.transform, false);
+            TextMeshProUGUI hBtnText = hBtnTextObj.AddComponent<TextMeshProUGUI>();
+            hBtnText.text = "OCULTAR";
+            hBtnText.fontSize = 14;
+            hBtnText.fontStyle = FontStyles.Bold;
+            hBtnText.alignment = TextAlignmentOptions.Center;
+            hBtnText.color = Color.white;
+            RectTransform hBtnTextRT = hBtnTextObj.GetComponent<RectTransform>();
+            hBtnTextRT.anchorMin = Vector2.zero; hBtnTextRT.anchorMax = Vector2.one;
+            hBtnTextRT.sizeDelta = Vector2.zero;
+
             GameObject closeBtnObj = new GameObject("CloseMainCardBtn");
             closeBtnObj.transform.SetParent(bgObj.transform, false);
             Image closeBtnImg = closeBtnObj.AddComponent<Image>();
@@ -463,6 +490,7 @@ namespace HorizonFaser.UI
             uiScript.crewButton = cBtn;
             uiScript.machineryButton = mBtn;
             uiScript.permitButton = pBtn;
+            uiScript.hideButton = hBtn;
             
             cBtn.onClick.AddListener(uiScript.OnCrewButtonClicked);
             mBtn.onClick.AddListener(uiScript.OnMachineryButtonClicked);

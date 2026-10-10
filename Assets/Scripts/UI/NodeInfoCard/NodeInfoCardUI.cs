@@ -47,6 +47,7 @@ namespace HorizonFaser.UI
         public Button crewButton;
         public Button machineryButton;
         public Button permitButton;
+        public Button hideButton;
 
         public static bool IsAnyCardOpen = false;
         public static NodeInfoCardUI ActiveCard = null;
@@ -68,7 +69,6 @@ namespace HorizonFaser.UI
         private long _currentSegmentId = -1;
         
         private GameObject _currentTargetNode;
-        private Button _hideButton;
 
         private static GameObject _detailsPopup;
         private static RawImage _popupImage;
@@ -155,21 +155,11 @@ namespace HorizonFaser.UI
             if (machineryButton != null) machineryButton.gameObject.SetActive(machine != null);
             if (permitButton != null) permitButton.gameObject.SetActive(nodeType.Contains("Segmento") || nodeType.Contains("SEGMENTO"));
 
-            if (_hideButton == null && permitButton != null)
+            if (hideButton != null)
             {
-                _hideButton = Instantiate(permitButton, permitButton.transform.parent);
-                _hideButton.gameObject.name = "HideButton";
-                var txt = _hideButton.GetComponentInChildren<TextMeshProUGUI>();
-                if (txt != null) txt.text = "OCULTAR";
-                _hideButton.onClick.RemoveAllListeners();
-                _hideButton.onClick.AddListener(OnHideNodeClicked);
-                
-                var bg = _hideButton.GetComponent<Image>();
-                if (bg != null) bg.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            }
-            if (_hideButton != null)
-            {
-                _hideButton.gameObject.SetActive(_currentTargetNode != null);
+                hideButton.gameObject.SetActive(_currentTargetNode != null);
+                hideButton.onClick.RemoveAllListeners();
+                hideButton.onClick.AddListener(OnHideNodeClicked);
             }
 
             ActiveCard = this;
@@ -177,7 +167,7 @@ namespace HorizonFaser.UI
             if (crewButton != null && crewButton.gameObject.activeInHierarchy) _activeButtons.Add(crewButton);
             if (machineryButton != null && machineryButton.gameObject.activeInHierarchy) _activeButtons.Add(machineryButton);
             if (permitButton != null && permitButton.gameObject.activeInHierarchy) _activeButtons.Add(permitButton);
-            if (_hideButton != null && _hideButton.gameObject.activeInHierarchy) _activeButtons.Add(_hideButton);
+            if (hideButton != null && hideButton.gameObject.activeInHierarchy) _activeButtons.Add(hideButton);
             
             _currentButtonIndex = 0;
             HighlightCurrentButton();
@@ -359,7 +349,7 @@ namespace HorizonFaser.UI
                     else
                     {
                         img.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-                        if (btn.name == "HideButton") img.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+                        if (btn == hideButton) img.color = new Color(0.2f, 0.2f, 0.2f, 1f);
                         else if (btn == permitButton) img.color = new Color(0.9f, 0.1f, 0.3f, 1f);
                         else img.color = new Color(0.1f, 0.5f, 0.9f, 1f); 
                         btn.transform.localScale = Vector3.one;
