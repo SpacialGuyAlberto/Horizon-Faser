@@ -28,6 +28,10 @@ namespace HorizonFaser.XR
         [Header("Advanced Data")]
         public Crew assignedCrew;
         public Machine assignedMachine;
+        
+        [Header("LineRenderer Integration (For Segments)")]
+        public Vector3[] linePoints;
+        public LineRenderer lineRenderer;
 
         [Header("UI Reference")]
         public NodeInfoCardUI infoCardUI;

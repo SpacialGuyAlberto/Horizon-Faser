@@ -172,7 +172,7 @@ namespace HorizonFaser.Renderers
                     segmentCrew.AssignedMachines.Add(segmentMachine);
                 }
 
-                HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
+                var interactable = HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
                     segmentObj, 
                     HorizonFaser.XR.NetworkNodeType.Segmento, 
                     $"Segmento {segment.Id}", 
@@ -181,6 +181,10 @@ namespace HorizonFaser.Renderers
                     segmentMachine,
                     segment.Id
                 );
+                
+                // Añadir los datos necesarios para que el XRPointerMagnet detecte la línea matemáticamente
+                interactable.linePoints = controlPoints.ToArray();
+                interactable.lineRenderer = lineRenderer;
 
                 // 6. Shovel Icon
                 bool isExcavation = !string.IsNullOrEmpty(segment.WorkType) && 

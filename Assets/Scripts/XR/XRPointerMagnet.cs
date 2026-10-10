@@ -56,13 +56,34 @@ namespace HorizonFaser.XR
 
                 if (node.nodeType == NetworkNodeType.Segmento)
                 {
-                    // Usar lossyScale garantiza que obtenemos el tamaño real en el mundo 
-                    // sin importar cómo esté escalado el padre (Cesium).
-                    float halfLength = node.transform.lossyScale.y;
-                    Vector3 pA = node.transform.position - node.transform.up * halfLength;
-                    Vector3 pB = node.transform.position + node.transform.up * halfLength;
-                    
-                    targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                    if (node.linePoints != null && node.linePoints.Length > 1)
+                    {
+                        // Nuevo comportamiento: encontrar el sub-segmento más cercano en el LineRenderer
+                        float closestSubDist = float.MaxValue;
+                        Vector3 bestPoint = node.linePoints[0];
+                        for(int i = 0; i < node.linePoints.Length - 1; i++)
+                        {
+                            Vector3 pA = node.linePoints[i];
+                            Vector3 pB = node.linePoints[i+1];
+                            Vector3 closestOnSub = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                            float dist = Vector3.Distance(pointer.position, closestOnSub);
+                            if(dist < closestSubDist)
+                            {
+                                closestSubDist = dist;
+                                bestPoint = closestOnSub;
+                            }
+                        }
+                        targetPoint = bestPoint;
+                    }
+                    else
+                    {
+                        // Comportamiento Antiguo (Cilindros)
+                        float halfLength = node.transform.lossyScale.y;
+                        Vector3 pA = node.transform.position - node.transform.up * halfLength;
+                        Vector3 pB = node.transform.position + node.transform.up * halfLength;
+                        
+                        targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                    }
                 }
 
                 Vector3 toNode = targetPoint - pointer.position;
@@ -102,18 +123,35 @@ namespace HorizonFaser.XR
                 {
                     if (node.nodeType == NetworkNodeType.Segmento)
                     {
-                        // Para los tubos, engordamos exageradamente el grosor (50x) 
-                        target.x = _originalScales[node].x * 50f;
-                        target.z = _originalScales[node].z * 50f;
+                        if (node.lineRenderer != null)
+                        {
+                            node.lineRenderer.widthMultiplier = Mathf.Lerp(node.lineRenderer.widthMultiplier, 3f, Time.deltaTime * 15f);
+                        }
+                        else
+                        {
+                            // Para los tubos viejos, engordamos exageradamente el grosor
+                            target.x = _originalScales[node].x * 50f;
+                            target.z = _originalScales[node].z * 50f;
+                        }
                     }
                     else
                     {
                         target = _originalScales[node] * scaleMultiplier;
                     }
                 }
+                else
+                {
+                    if (node.nodeType == NetworkNodeType.Segmento && node.lineRenderer != null)
+                    {
+                        node.lineRenderer.widthMultiplier = Mathf.Lerp(node.lineRenderer.widthMultiplier, 1f, Time.deltaTime * 15f);
+                    }
+                }
                 
-                // Suavizar el crecimiento
-                node.transform.localScale = Vector3.Lerp(node.transform.localScale, target, Time.deltaTime * 15f);
+                if (node.nodeType != NetworkNodeType.Segmento || node.lineRenderer == null)
+                {
+                    // Suavizar el crecimiento del Transform (solo si no es LineRenderer o no es Segmento)
+                    node.transform.localScale = Vector3.Lerp(node.transform.localScale, target, Time.deltaTime * 15f);
+                }
             }
 
             // 3. Detectar el Clic (Gatillo de VR) puenteando el sistema XRI
