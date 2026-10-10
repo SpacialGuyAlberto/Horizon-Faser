@@ -10,7 +10,8 @@ namespace HorizonFaser.XR
     {
         Pop,
         Netzverteiler,
-        Segmento
+        Segmento,
+        Utility
     }
 
     [RequireComponent(typeof(XRSimpleInteractable))]

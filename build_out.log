@@ -1,0 +1,48 @@
+Unity Editor version:    6000.6.3f1 (45d8eee7de74)
+Branch:                  6000.6/staging
+Build type:              Release
+Batch mode:              YES
+System name:             Linux
+Distro version:          #1 SMP PREEMPT_DYNAMIC Fri Sep 25 21:05:44 UTC 2026
+Kernel version:          7.2.8-200.fc44.x86_64
+Architecture:            x86_64
+Window Protocol:         Wayland (XWayland)
+Available memory:        63891 MB
+Date:                    2026-10-10T16:15:01Z
+VBCSCompilerPreWarmer: watching VBCSCompiler (PID 97790)
+VBCSCompilerPreWarmer: pre-warm launched (dotnet PID 97792)
+VBCSCompiler prewarm took 7.99 ms
+Initialize udev device monitor.
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-luis" at "2026-10-10T16:15:01.991625Z"
+[SignatureVerifier] Application signature verification not supported on this platform.
+
+COMMAND LINE ARGUMENTS:
+/home/luis/Unity/Hub/Editor/6000.6.3f1/Editor/Unity
+-batchmode
+-nographics
+-quit
+-projectPath
+/home/luis/Dokumente/Unity/Horizon-faser
+-logFile
+build_out.log
+Successfully changed project path to: /home/luis/Dokumente/Unity/Horizon-faser
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.3+d7ffd15
+  Session Id:              6b62a25269054c74af2b223c59a0e247
+  Correlation Id:          0e7052a521b2381137a3d9c78a8b9942
+  External correlation Id: 5519111021260471471
+  Machine Id:              F9enDoR1AiTM98KSgLOlLde3pDk=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-luis" (connect: 0.00s, validation: 0.00s, handshake: 0.00s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-luis-notifications" at "2026-10-10T16:15:01.993809Z"
+[Licensing::Module] Error: Access token is unavailable; failed to update
+/home/luis/Dokumente/Unity/Horizon-faser
+[ExitDontLaunchBugReporter] Exiting without the bug reporter. Application will exit with return code 1
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 9072457884601-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+VBCSCompilerPreWarmer: requested VBCSCompiler shutdown
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.00

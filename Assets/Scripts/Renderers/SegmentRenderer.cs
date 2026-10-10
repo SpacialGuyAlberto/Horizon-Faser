@@ -96,9 +96,10 @@ namespace HorizonFaser.Renderers
                 }
                 UnityEngine.Object.Destroy(tempObj);
 
-                // --- NUEVO: Interpolar spline matemáticamente en C# ---
+                // --- NUEVO: Interpolar spline matemáticamente en C# de forma Adaptativa ---
                 // Si el dashboard mandó solo 3-4 puntos base, esto genera una curva perfecta.
-                List<Vector3> smoothPoints = EvaluateCatmullRom(controlPoints, 20);
+                // Tolerancia de 0.05f metros (5 cm) asegura máxima calidad visual con mínimos vértices en RAM
+                List<Vector3> smoothPoints = EvaluateCatmullRom(controlPoints, 0.05f);
 
                 float totalInclination = 0f;
                 float distance = 0f;
@@ -251,11 +252,14 @@ namespace HorizonFaser.Renderers
             }
         }
 
-        private static List<Vector3> EvaluateCatmullRom(List<Vector3> points, int resolution)
+        private static List<Vector3> EvaluateCatmullRom(List<Vector3> points, float tolerance = 0.05f)
         {
-            if (points == null || points.Count < 3) return points ?? new List<Vector3>();
+            if (points == null || points.Count < 2) return points ?? new List<Vector3>();
+            if (points.Count == 2) return new List<Vector3> { points[0], points[1] };
             
             List<Vector3> result = new List<Vector3>();
+            float toleranceSq = tolerance * tolerance;
+
             for (int i = 0; i < points.Count - 1; i++)
             {
                 Vector3 p0 = points[Mathf.Max(i - 1, 0)];
@@ -263,14 +267,47 @@ namespace HorizonFaser.Renderers
                 Vector3 p2 = points[i + 1];
                 Vector3 p3 = points[Mathf.Min(i + 2, points.Count - 1)];
 
-                for (int j = 0; j < (i == points.Count - 2 ? resolution + 1 : resolution); j++)
-                {
-                    float t = j / (float)resolution;
-                    Vector3 pos = GetCatmullRomPosition(t, p0, p1, p2, p3);
-                    result.Add(pos);
-                }
+                SubdivideCatmullRom(p0, p1, p2, p3, 0f, 1f, result, toleranceSq);
             }
+            // Add the very last point of the curve
+            result.Add(points[points.Count - 1]);
+            
             return result;
+        }
+
+        private static void SubdivideCatmullRom(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t0, float t1, List<Vector3> result, float toleranceSq)
+        {
+            float tm = (t0 + t1) * 0.5f;
+            Vector3 v0 = GetCatmullRomPosition(t0, p0, p1, p2, p3);
+            Vector3 v1 = GetCatmullRomPosition(t1, p0, p1, p2, p3);
+            Vector3 vm = GetCatmullRomPosition(tm, p0, p1, p2, p3);
+            
+            // Calculamos la distancia del punto central a la línea recta entre los extremos
+            float distSq = SqrDistanceToSegment(vm, v0, v1);
+            
+            // Si el punto central se desvía más de la tolerancia de la línea recta, subdividimos
+            // Limitamos a un máximo de 20 subdivisiones (0.05f) para evitar recursión infinita en curvas extremas
+            if (distSq > toleranceSq && (t1 - t0) > 0.05f) 
+            {
+                SubdivideCatmullRom(p0, p1, p2, p3, t0, tm, result, toleranceSq);
+                SubdivideCatmullRom(p0, p1, p2, p3, tm, t1, result, toleranceSq);
+            }
+            else
+            {
+                // Solo guardamos el punto inicial del segmento, el punto final será guardado por la siguiente llamada
+                result.Add(v0);
+            }
+        }
+
+        private static float SqrDistanceToSegment(Vector3 point, Vector3 segA, Vector3 segB)
+        {
+            Vector3 lineDir = segB - segA;
+            float lineLenSq = lineDir.sqrMagnitude;
+            if (lineLenSq == 0f) return (point - segA).sqrMagnitude;
+            
+            float t = Mathf.Clamp01(Vector3.Dot(point - segA, lineDir) / lineLenSq);
+            Vector3 projection = segA + t * lineDir;
+            return (point - projection).sqrMagnitude;
         }
 
         private static Vector3 GetCatmullRomPosition(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)

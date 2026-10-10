@@ -38,82 +38,136 @@ namespace HorizonFaser.XR
             }
         }
 
+        private bool _wasJoystickXPressed = false;
+        private int _cycleOffset = 0;
+        private NetworkNodeInteractable _lastBestNode = null;
+
         private void Update()
         {
             Transform pointer = GetActivePointer();
             if (pointer == null) return;
 
-            NetworkNodeInteractable bestNode = null;
-            // Usamos un sistema de puntuación. Menor puntuación es mejor.
-            float bestScore = float.MaxValue;
-
-            // 1. Encontrar el mejor nodo evaluando Ángulo + Distancia
-            foreach (var node in _nodes)
+            // 1. Detectar Entradas (Gatillo y Joystick)
+            bool isPressed = false;
+            Vector2 joystick = Vector2.zero;
+            var rightHandDevices = new List<InputDevice>();
+            InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Right | InputDeviceCharacteristics.Controller, rightHandDevices);
+            if (rightHandDevices.Count > 0)
             {
-                if (node == null) continue;
-
-                Vector3 targetPoint = node.transform.position;
-
-                if (node.nodeType == NetworkNodeType.Segmento)
-                {
-                    if (node.linePoints != null && node.linePoints.Length > 1)
-                    {
-                        // Nuevo comportamiento: encontrar el sub-segmento más cercano en el LineRenderer
-                        float closestSubDist = float.MaxValue;
-                        Vector3 bestPoint = node.linePoints[0];
-                        for(int i = 0; i < node.linePoints.Length - 1; i++)
-                        {
-                            Vector3 pA = node.linePoints[i];
-                            Vector3 pB = node.linePoints[i+1];
-                            Vector3 closestOnSub = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
-                            float dist = Vector3.Distance(pointer.position, closestOnSub);
-                            if(dist < closestSubDist)
-                            {
-                                closestSubDist = dist;
-                                bestPoint = closestOnSub;
-                            }
-                        }
-                        targetPoint = bestPoint;
-                    }
-                    else
-                    {
-                        // Comportamiento Antiguo (Cilindros)
-                        float halfLength = node.transform.lossyScale.y;
-                        Vector3 pA = node.transform.position - node.transform.up * halfLength;
-                        Vector3 pB = node.transform.position + node.transform.up * halfLength;
-                        
-                        targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
-                    }
-                }
-
-                Vector3 toNode = targetPoint - pointer.position;
-                float distance = toNode.magnitude;
-                float angle = Vector3.Angle(pointer.forward, toNode.normalized);
-
-                // Ángulo máximo permitido (25 grados para que funcione bien de cerca)
-                if (angle < 25f)
-                {
-                    // Fórmula mágica: El ángulo manda, pero a ángulos similares, gana el más cercano.
-                    float score = angle + (distance * 0.0001f);
-
-                    // TRUCO: Si estamos apuntando directamente a un tubo de fibra (ángulo < 5 grados),
-                    // le damos una puntuación invencible para que gane sobre cualquier POP cercano.
-                    if (node.nodeType == NetworkNodeType.Segmento && angle < 5f)
-                    {
-                        score = -1000f + angle; // Gana siempre, pero si hay varios tubos, gana el del ángulo más perfecto.
-                    }
-
-                    if (score < bestScore)
-                    {
-                        bestScore = score;
-                        bestNode = node;
-                    }
-                }
+                rightHandDevices[0].TryGetFeatureValue(CommonUsages.triggerButton, out isPressed);
+                rightHandDevices[0].TryGetFeatureValue(CommonUsages.primary2DAxis, out joystick);
             }
 
-            _hoveredNode = bestNode;
+            int flickDir = 0;
+            if (joystick.x > 0.5f && !_wasJoystickXPressed) { flickDir = 1; _wasJoystickXPressed = true; }
+            else if (joystick.x < -0.5f && !_wasJoystickXPressed) { flickDir = -1; _wasJoystickXPressed = true; }
+            else if (Mathf.Abs(joystick.x) < 0.2f) { _wasJoystickXPressed = false; }
 
-            // 2. Animar el tamaño visualmente (Hover)
+            // 2. Lógica de Interacción: Prioridad a Tarjetas Abiertas
+            if (HorizonFaser.UI.NodeInfoCardUI.IsAnyCardOpen && HorizonFaser.UI.NodeInfoCardUI.ActiveCard != null)
+            {
+                if (flickDir != 0)
+                {
+                    HorizonFaser.UI.NodeInfoCardUI.ActiveCard.CycleOption(flickDir);
+                }
+                
+                if (isPressed && !_wasTriggerPressed)
+                {
+                    HorizonFaser.UI.NodeInfoCardUI.ActiveCard.SelectCurrentOption();
+                }
+                _wasTriggerPressed = isPressed;
+            }
+            else
+            {
+                // NO HAY TARJETAS: Interacción con Nodos (con Ciclado por Joystick)
+                List<NetworkNodeInteractable> validNodes = new List<NetworkNodeInteractable>();
+                Dictionary<NetworkNodeInteractable, float> nodeScores = new Dictionary<NetworkNodeInteractable, float>();
+
+                foreach (var node in _nodes)
+                {
+                    if (node == null || !node.gameObject.activeInHierarchy) continue;
+
+                    Vector3 targetPoint = node.transform.position;
+
+                    if (node.nodeType == NetworkNodeType.Segmento)
+                    {
+                        if (node.linePoints != null && node.linePoints.Length > 1)
+                        {
+                            float closestSubDist = float.MaxValue;
+                            Vector3 bestPoint = node.linePoints[0];
+                            for(int i = 0; i < node.linePoints.Length - 1; i++)
+                            {
+                                Vector3 pA = node.linePoints[i];
+                                Vector3 pB = node.linePoints[i+1];
+                                Vector3 closestOnSub = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                                float dist = Vector3.Distance(pointer.position, closestOnSub);
+                                if(dist < closestSubDist)
+                                {
+                                    closestSubDist = dist;
+                                    bestPoint = closestOnSub;
+                                }
+                            }
+                            targetPoint = bestPoint;
+                        }
+                        else
+                        {
+                            float halfLength = node.transform.lossyScale.y;
+                            Vector3 pA = node.transform.position - node.transform.up * halfLength;
+                            Vector3 pB = node.transform.position + node.transform.up * halfLength;
+                            targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                        }
+                    }
+
+                    Vector3 toNode = targetPoint - pointer.position;
+                    float distance = toNode.magnitude;
+                    float angle = Vector3.Angle(pointer.forward, toNode.normalized);
+
+                    if (angle < maxAngle)
+                    {
+                        float score = angle + (distance * 0.0001f);
+                        if (node.nodeType == NetworkNodeType.Segmento && angle < 5f)
+                        {
+                            score = -1000f + angle; // Priorizar tubos si miramos directo a ellos
+                        }
+                        validNodes.Add(node);
+                        nodeScores[node] = score;
+                    }
+                }
+
+                validNodes.Sort((a, b) => nodeScores[a].CompareTo(nodeScores[b]));
+
+                NetworkNodeInteractable currentBest = validNodes.Count > 0 ? validNodes[0] : null;
+                if (currentBest != _lastBestNode)
+                {
+                    _cycleOffset = 0;
+                    _lastBestNode = currentBest;
+                }
+
+                if (validNodes.Count > 0)
+                {
+                    if (flickDir != 0)
+                    {
+                        _cycleOffset += flickDir;
+                    }
+                    if (_cycleOffset < 0) _cycleOffset = validNodes.Count - 1;
+                    _hoveredNode = validNodes[_cycleOffset % validNodes.Count];
+                }
+                else
+                {
+                    _hoveredNode = null;
+                }
+
+                if (isPressed && !_wasTriggerPressed)
+                {
+                    if (_hoveredNode != null)
+                    {
+                        _hoveredNode.ForceTrigger();
+                    }
+                }
+                _wasTriggerPressed = isPressed;
+            }
+
+            // 3. Animar el tamaño visualmente (Hover)
             foreach (var node in _nodes)
             {
                 if (node == null) continue;
@@ -129,7 +183,6 @@ namespace HorizonFaser.XR
                         }
                         else
                         {
-                            // Para los tubos viejos, engordamos exageradamente el grosor
                             target.x = _originalScales[node].x * 50f;
                             target.z = _originalScales[node].z * 50f;
                         }
@@ -149,31 +202,9 @@ namespace HorizonFaser.XR
                 
                 if (node.nodeType != NetworkNodeType.Segmento || node.lineRenderer == null)
                 {
-                    // Suavizar el crecimiento del Transform (solo si no es LineRenderer o no es Segmento)
                     node.transform.localScale = Vector3.Lerp(node.transform.localScale, target, Time.deltaTime * 15f);
                 }
             }
-
-            // 3. Detectar el Clic (Gatillo de VR) puenteando el sistema XRI
-            bool isPressed = false;
-            var rightHandDevices = new List<InputDevice>();
-            InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Right | InputDeviceCharacteristics.Controller, rightHandDevices);
-            if (rightHandDevices.Count > 0)
-            {
-                rightHandDevices[0].TryGetFeatureValue(CommonUsages.triggerButton, out isPressed);
-            }
-
-            // Fallbacks de clic eliminados (el viejo Input.GetKey causa errores si Unity está forzado a usar el Nuevo Input System)
-
-            // 4. Disparar acción
-            if (isPressed && !_wasTriggerPressed)
-            {
-                if (_hoveredNode != null)
-                {
-                    _hoveredNode.ForceTrigger();
-                }
-            }
-            _wasTriggerPressed = isPressed;
         }
 
         private Transform GetActivePointer()

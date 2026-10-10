@@ -151,7 +151,7 @@ namespace HorizonFaser.Renderers
                     
                     HorizonFaser.XR.NetworkNodeInteractable.AttachToNode(
                         cyl, 
-                        HorizonFaser.XR.NetworkNodeType.Segmento, 
+                        HorizonFaser.XR.NetworkNodeType.Utility, 
                         $"Utility {utility.utilityType}", 
                         $"Operador: {utility.operatorName}\nID: {utility.id}"
                     );
