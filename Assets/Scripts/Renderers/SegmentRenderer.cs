@@ -96,15 +96,19 @@ namespace HorizonFaser.Renderers
                 }
                 UnityEngine.Object.Destroy(tempObj);
 
+                // --- NUEVO: Interpolar spline matemáticamente en C# ---
+                // Si el dashboard mandó solo 3-4 puntos base, esto genera una curva perfecta.
+                List<Vector3> smoothPoints = EvaluateCatmullRom(controlPoints, 20);
+
                 float totalInclination = 0f;
                 float distance = 0f;
-                for (int i = 0; i < controlPoints.Count - 1; i++)
+                for (int i = 0; i < smoothPoints.Count - 1; i++)
                 {
-                    distance += Vector3.Distance(controlPoints[i], controlPoints[i+1]);
-                    if (i < controlPoints.Count - 2)
+                    distance += Vector3.Distance(smoothPoints[i], smoothPoints[i+1]);
+                    if (i < smoothPoints.Count - 2)
                     {
-                        Vector3 v1 = (controlPoints[i+1] - controlPoints[i]).normalized;
-                        Vector3 v2 = (controlPoints[i+2] - controlPoints[i+1]).normalized;
+                        Vector3 v1 = (smoothPoints[i+1] - smoothPoints[i]).normalized;
+                        Vector3 v2 = (smoothPoints[i+2] - smoothPoints[i+1]).normalized;
                         totalInclination += Vector3.Angle(v1, v2);
                     }
                 }
@@ -114,11 +118,11 @@ namespace HorizonFaser.Renderers
                 segmentObj.transform.SetParent(segmentsParent.transform, true);
 
                 LineRenderer lineRenderer = segmentObj.AddComponent<LineRenderer>();
-                lineRenderer.useWorldSpace = true; // controlPoints están en World Space
+                lineRenderer.useWorldSpace = true; // smoothPoints están en World Space
                 lineRenderer.startWidth = 0.5f;
                 lineRenderer.endWidth = 0.5f;
-                lineRenderer.positionCount = controlPoints.Count;
-                lineRenderer.SetPositions(controlPoints.ToArray());
+                lineRenderer.positionCount = smoothPoints.Count;
+                lineRenderer.SetPositions(smoothPoints.ToArray());
                 lineRenderer.alignment = LineAlignment.View;
 
                 // 3. Material
@@ -135,15 +139,15 @@ namespace HorizonFaser.Renderers
                 }
 
                 // 4. Hitbox Ligero (Cajas separadas para evitar MeshColliders pesados)
-                int colliderStep = Mathf.Max(1, controlPoints.Count / 10); 
-                for (int i = 0; i < controlPoints.Count - 1; i += colliderStep)
+                int colliderStep = Mathf.Max(1, smoothPoints.Count / 10); 
+                for (int i = 0; i < smoothPoints.Count - 1; i += colliderStep)
                 {
                     GameObject colObj = new GameObject("Hitbox");
                     colObj.transform.SetParent(segmentObj.transform, true);
-                    colObj.transform.position = (controlPoints[i] + controlPoints[i+1]) / 2f;
-                    colObj.transform.LookAt(controlPoints[i+1]);
+                    colObj.transform.position = (smoothPoints[i] + smoothPoints[i+1]) / 2f;
+                    colObj.transform.LookAt(smoothPoints[i+1]);
                     BoxCollider bc = colObj.AddComponent<BoxCollider>();
-                    bc.size = new Vector3(1f, 1f, Vector3.Distance(controlPoints[i], controlPoints[i+1]));
+                    bc.size = new Vector3(1f, 1f, Vector3.Distance(smoothPoints[i], smoothPoints[i+1]));
                 }
 
                 // 5. Interaction (Mocking)
@@ -245,6 +249,38 @@ namespace HorizonFaser.Renderers
                 mainCam.transform.position = new Vector3(0, 150f, -150f); 
                 mainCam.transform.LookAt(Vector3.zero);
             }
+        }
+
+        private static List<Vector3> EvaluateCatmullRom(List<Vector3> points, int resolution)
+        {
+            if (points == null || points.Count < 3) return points ?? new List<Vector3>();
+            
+            List<Vector3> result = new List<Vector3>();
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                Vector3 p0 = points[Mathf.Max(i - 1, 0)];
+                Vector3 p1 = points[i];
+                Vector3 p2 = points[i + 1];
+                Vector3 p3 = points[Mathf.Min(i + 2, points.Count - 1)];
+
+                for (int j = 0; j < (i == points.Count - 2 ? resolution + 1 : resolution); j++)
+                {
+                    float t = j / (float)resolution;
+                    Vector3 pos = GetCatmullRomPosition(t, p0, p1, p2, p3);
+                    result.Add(pos);
+                }
+            }
+            return result;
+        }
+
+        private static Vector3 GetCatmullRomPosition(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
+        {
+            Vector3 a = 2f * p1;
+            Vector3 b = p2 - p0;
+            Vector3 c = 2f * p0 - 5f * p1 + 4f * p2 - p3;
+            Vector3 d = -p0 + 3f * p1 - 3f * p2 + p3;
+
+            return 0.5f * (a + (b * t) + (c * t * t) + (d * t * t * t));
         }
     }
 }
