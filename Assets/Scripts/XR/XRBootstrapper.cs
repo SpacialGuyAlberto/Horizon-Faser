@@ -61,6 +61,24 @@ namespace HorizonFaser.XR
 
                     if (cam.GetComponent<ARCameraBackground>() == null)
                         cam.gameObject.AddComponent<ARCameraBackground>();
+
+                    // ARREGLO DE TRACKING: Añadimos TrackedPoseDriver para que la cámara lea tu movimiento físico.
+                    // Esto EVITA que el mundo te siga y logra que el entorno mantenga su posición original.
+                    var tpd = cam.GetComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
+                    if (tpd == null)
+                    {
+                        tpd = cam.gameObject.AddComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
+                        
+                        var posAction = new UnityEngine.InputSystem.InputAction("Position", binding: "<XRHMD>/centerEyePosition");
+                        posAction.Enable();
+                        tpd.positionAction = posAction;
+                        
+                        var rotAction = new UnityEngine.InputSystem.InputAction("Rotation", binding: "<XRHMD>/centerEyeRotation");
+                        rotAction.Enable();
+                        tpd.rotationAction = rotAction;
+                        
+                        Debug.Log("[XRBootstrapper] Añadido TrackedPoseDriver dinámico a la cámara para recuperar el tracking 6DOF.");
+                    }
                 }
             }
         }
