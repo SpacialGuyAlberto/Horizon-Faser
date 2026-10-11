@@ -125,21 +125,36 @@ namespace HorizonFaser.XR
 
             _lastClickTime = Time.time;
 
-            if (NodeInfoCardUI.IsAnyCardOpen) 
+            if (infoCardUI == null)
             {
-                // Doble clic rápido en CUALQUIER segmento cierra la tarjeta
-                if (timeSinceLastClick < 0.5f) 
+                infoCardUI = NodeInfoCardUI.ActiveCard ?? FindFirstObjectByType<NodeInfoCardUI>(FindObjectsInactive.Include);
+                if (infoCardUI == null && _sharedGeneratedCard != null)
+                {
+                    infoCardUI = _sharedGeneratedCard;
+                }
+            }
+
+            // Si ya hay una tarjeta abierta para este MISMO nodo y se hace clic rápido (< 0.5s), cerrarla
+            if (NodeInfoCardUI.IsAnyCardOpen && NodeInfoCardUI.ActiveCard != null && NodeInfoCardUI.ActiveCard.CurrentTargetNode == this.gameObject)
+            {
+                if (timeSinceLastClick < 0.5f)
                 {
                     if (infoCardUI != null) infoCardUI.HideCard();
+                    return;
                 }
-                // Bloquear apertura accidental con un solo rayo
-                return; 
+            }
+
+            // Calcular posición espacial real: para segmentos usar el punto medio de su trayectoria
+            Vector3 spawnPos = transform.position;
+            if (linePoints != null && linePoints.Length > 0)
+            {
+                spawnPos = transform.TransformPoint(linePoints[linePoints.Length / 2]);
             }
 
             if (infoCardUI != null)
             {
                 string typeStr = nodeType.ToString();
-                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, transform.position, assignedCrew, assignedMachine, segmentId, this.gameObject);
+                infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, spawnPos, assignedCrew, assignedMachine, segmentId, this.gameObject);
                 Debug.Log($"[NetworkNode] Clic/Interacción detectado en: {typeStr} - {nodeName} (SegId: {segmentId})");
             }
         }

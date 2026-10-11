@@ -248,18 +248,54 @@ namespace HorizonFaser.UI
             }
             
             RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
-            canvasRT.sizeDelta = new Vector2(550, 220);
+            canvasRT.sizeDelta = new Vector2(550, 230);
+
+            // Borde luminoso sutil exterior
+            GameObject borderObj = new GameObject("Border");
+            borderObj.transform.SetParent(canvasObj.transform, false);
+            Image borderImage = borderObj.AddComponent<Image>();
+            borderImage.sprite = UISpriteFactory.GetRoundedSprite();
+            borderImage.type = Image.Type.Sliced;
+            borderImage.color = new Color(0.35f, 0.40f, 0.55f, 0.35f);
+            RectTransform borderRT = borderObj.GetComponent<RectTransform>();
+            borderRT.anchorMin = Vector2.zero; borderRT.anchorMax = Vector2.one;
+            borderRT.sizeDelta = new Vector2(4, 4);
 
             GameObject bgObj = new GameObject("Background");
             bgObj.transform.SetParent(canvasObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.sprite = UISpriteFactory.GetRoundedSprite();
             bgImage.type = Image.Type.Sliced;
-            bgImage.color = new Color(0.11f, 0.11f, 0.12f, 0.95f);
+            bgImage.color = new Color(0.08f, 0.09f, 0.11f, 0.96f);
             
             RectTransform bgRT = bgObj.GetComponent<RectTransform>();
             bgRT.anchorMin = Vector2.zero; bgRT.anchorMax = Vector2.one;
             bgRT.sizeDelta = Vector2.zero;
+
+            // Barra visual superior de arrastre / grab bar (estilo VisionOS / HorizonOS)
+            GameObject grabHandleObj = new GameObject("GrabHandle");
+            grabHandleObj.transform.SetParent(bgObj.transform, false);
+            Image grabImg = grabHandleObj.AddComponent<Image>();
+            grabImg.sprite = UISpriteFactory.GetPillSprite();
+            grabImg.type = Image.Type.Sliced;
+            grabImg.color = new Color(0.24f, 0.27f, 0.35f, 0.85f);
+            RectTransform grabRT = grabHandleObj.GetComponent<RectTransform>();
+            grabRT.anchorMin = new Vector2(0.5f, 1f); grabRT.anchorMax = new Vector2(0.5f, 1f);
+            grabRT.pivot = new Vector2(0.5f, 1f);
+            grabRT.anchoredPosition = new Vector2(0, 13);
+            grabRT.sizeDelta = new Vector2(160, 22);
+
+            GameObject grabTextObj = new GameObject("GrabText");
+            grabTextObj.transform.SetParent(grabHandleObj.transform, false);
+            TextMeshProUGUI grabText = grabTextObj.AddComponent<TextMeshProUGUI>();
+            grabText.text = "⠿  ARRASTRAR";
+            grabText.fontSize = 10;
+            grabText.fontStyle = FontStyles.Bold;
+            grabText.color = new Color(0.82f, 0.86f, 0.95f, 0.95f);
+            grabText.alignment = TextAlignmentOptions.Center;
+            RectTransform grabTextRT = grabTextObj.GetComponent<RectTransform>();
+            grabTextRT.anchorMin = Vector2.zero; grabTextRT.anchorMax = Vector2.one;
+            grabTextRT.sizeDelta = Vector2.zero;
 
             Shadow shadow = bgObj.AddComponent<Shadow>();
             shadow.effectColor = new Color(0, 0, 0, 0.5f);
@@ -300,7 +336,7 @@ namespace HorizonFaser.UI
             titleObj.transform.SetParent(bgObj.transform, false);
             TextMeshProUGUI title = titleObj.AddComponent<TextMeshProUGUI>();
             title.text = "Identificador del Nodo";
-            title.fontSize = 32;
+            title.fontSize = 24;
             title.fontStyle = FontStyles.Bold;
             title.alignment = TextAlignmentOptions.Left;
             title.color = Color.white;
@@ -455,18 +491,46 @@ namespace HorizonFaser.UI
             clBtnTextRT.anchorMin = Vector2.zero; clBtnTextRT.anchorMax = Vector2.one;
             clBtnTextRT.sizeDelta = Vector2.zero;
 
+
+            // Botón de recentrado al frente del usuario
+            GameObject recenterBtnObj = new GameObject("RecenterMainCardBtn");
+            recenterBtnObj.transform.SetParent(bgObj.transform, false);
+            Image recenterBtnImg = recenterBtnObj.AddComponent<Image>();
+            recenterBtnImg.sprite = UISpriteFactory.GetRoundedSprite();
+            recenterBtnImg.type = Image.Type.Sliced;
+            recenterBtnImg.color = new Color(0.18f, 0.19f, 0.23f, 1f);
+            Button rcBtn = recenterBtnObj.AddComponent<Button>();
+
+            RectTransform rcBtnRT = recenterBtnObj.GetComponent<RectTransform>();
+            rcBtnRT.anchorMin = new Vector2(1, 1); rcBtnRT.anchorMax = new Vector2(1, 1);
+            rcBtnRT.pivot = new Vector2(1, 1);
+            rcBtnRT.anchoredPosition = new Vector2(-46, -10);
+            rcBtnRT.sizeDelta = new Vector2(30, 30);
+
+            GameObject rcBtnTextObj = new GameObject("RcBtnText");
+            rcBtnTextObj.transform.SetParent(recenterBtnObj.transform, false);
+            TextMeshProUGUI rcBtnText = rcBtnTextObj.AddComponent<TextMeshProUGUI>();
+            rcBtnText.text = "⟲";
+            rcBtnText.fontSize = 18;
+            rcBtnText.fontStyle = FontStyles.Bold;
+            rcBtnText.alignment = TextAlignmentOptions.Center;
+            rcBtnText.color = new Color(0.85f, 0.88f, 0.95f, 1f);
+            RectTransform rcBtnTextRT = rcBtnTextObj.GetComponent<RectTransform>();
+            rcBtnTextRT.anchorMin = Vector2.zero; rcBtnTextRT.anchorMax = Vector2.one;
+            rcBtnTextRT.sizeDelta = Vector2.zero;
+
             GameObject scaleBtnObj = new GameObject("ScaleMainCardBtn");
             scaleBtnObj.transform.SetParent(bgObj.transform, false);
             Image scaleBtnImg = scaleBtnObj.AddComponent<Image>();
             scaleBtnImg.sprite = UISpriteFactory.GetRoundedSprite();
             scaleBtnImg.type = Image.Type.Sliced;
-            scaleBtnImg.color = new Color(0.17f, 0.17f, 0.18f, 1f);
+            scaleBtnImg.color = new Color(0.18f, 0.19f, 0.23f, 1f);
             Button scBtn = scaleBtnObj.AddComponent<Button>();
 
             RectTransform scBtnRT = scaleBtnObj.GetComponent<RectTransform>();
             scBtnRT.anchorMin = new Vector2(1, 1); scBtnRT.anchorMax = new Vector2(1, 1);
             scBtnRT.pivot = new Vector2(1, 1);
-            scBtnRT.anchoredPosition = new Vector2(-50, -10);
+            scBtnRT.anchoredPosition = new Vector2(-82, -10);
             scBtnRT.sizeDelta = new Vector2(30, 30);
 
             GameObject scBtnTextObj = new GameObject("ScBtnText");
@@ -496,6 +560,7 @@ namespace HorizonFaser.UI
             mBtn.onClick.AddListener(uiScript.OnMachineryButtonClicked);
             pBtn.onClick.AddListener(uiScript.OnPermitButtonClicked);
             clBtn.onClick.AddListener(uiScript.HideCard);
+            rcBtn.onClick.AddListener(uiScript.RecenterCard);
             scBtn.onClick.AddListener(uiScript.ToggleSize);
 
             UIXRUtils.SetLayerRecursively(canvasObj, 5);

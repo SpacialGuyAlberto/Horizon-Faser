@@ -55,7 +55,7 @@ namespace HorizonFaser.UI
         private List<Button> _activeButtons = new List<Button>();
         private int _currentButtonIndex = 0;
 
-        private Vector3 _baseScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
+        private Vector3 _baseScale = new Vector3(0.0013f, 0.0013f, 0.0013f);
         private float _currentAnimFactor = 0f;
         private Transform _cameraTransform;
         private string _baseDetails = "";
@@ -69,6 +69,8 @@ namespace HorizonFaser.UI
         private long _currentSegmentId = -1;
         
         private GameObject _currentTargetNode;
+        public GameObject CurrentTargetNode => _currentTargetNode;
+        public long CurrentSegmentId => _currentSegmentId;
 
         private static GameObject _detailsPopup;
         private static RawImage _popupImage;
@@ -90,22 +92,53 @@ namespace HorizonFaser.UI
             }
         }
 
+        public bool IsBeingGrabbed()
+        {
+            if (_grabInteractable == null)
+            {
+                _grabInteractable = GetComponent("XRGrabInteractable");
+                if (_grabInteractable != null)
+                {
+                    _isSelectedProp = _grabInteractable.GetType().GetProperty("isSelected");
+                }
+            }
+
+            if (_grabInteractable != null && _isSelectedProp != null)
+            {
+                try
+                {
+                    return (bool)_isSelectedProp.GetValue(_grabInteractable);
+                }
+                catch { }
+            }
+            return false;
+        }
+
         private void Update()
         {
+            if (_cameraTransform == null && Camera.main != null)
+            {
+                _cameraTransform = Camera.main.transform;
+            }
+
             if (_cameraTransform != null)
             {
-                bool isGrabbed = _grabInteractable != null && _isSelectedProp != null && (bool)_isSelectedProp.GetValue(_grabInteractable);
+                bool isGrabbed = IsBeingGrabbed();
                 
                 if (!isGrabbed)
                 {
                     Vector3 toCamera = transform.position - _cameraTransform.position;
-                    transform.rotation = Quaternion.LookRotation(toCamera);
+                    if (toCamera.sqrMagnitude > 0.001f)
+                    {
+                        transform.rotation = Quaternion.LookRotation(toCamera);
+                    }
                 }
 
                 Vector3 toCamera2 = transform.position - _cameraTransform.position;
                 float distance = toCamera2.magnitude;
-                float distanceMultiplier = Mathf.Max(1f, distance / 2f);
                 
+                // Escala controlada y elegante: acotada estrictamente entre 0.9x y 1.35x para evitar que sea gigantesca
+                float distanceMultiplier = Mathf.Clamp(distance / 1.25f, 0.9f, 1.35f);
                 transform.localScale = _baseScale * distanceMultiplier * _currentAnimFactor;
 
                 if (detailsText != null && !_showingAdvancedInfo && !string.IsNullOrEmpty(_baseDetails))
@@ -120,15 +153,32 @@ namespace HorizonFaser.UI
             _isSmallSize = !_isSmallSize;
             if (_isSmallSize)
             {
-                _baseScale = new Vector3(0.0012f, 0.0012f, 0.0012f);
-                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
-                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+                _baseScale = new Vector3(0.0010f, 0.0010f, 0.0010f);
+                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.0012f, 0.0012f, 0.0012f);
+                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.0012f, 0.0012f, 0.0012f);
             }
             else
             {
-                _baseScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
-                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
-                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+                _baseScale = new Vector3(0.0013f, 0.0013f, 0.0013f);
+                if (_permitPopup != null) _permitPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+                if (_detailsPopup != null) _detailsPopup.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+            }
+        }
+
+        public void RecenterCard()
+        {
+            Camera mainCam = Camera.main ?? UnityEngine.Object.FindAnyObjectByType<Camera>();
+            if (mainCam != null)
+            {
+                _cameraTransform = mainCam.transform;
+                Vector3 camPos = mainCam.transform.position;
+                Vector3 camFwd = mainCam.transform.forward;
+                Vector3 flatFwd = new Vector3(camFwd.x, 0f, camFwd.z).normalized;
+                if (flatFwd.sqrMagnitude < 0.01f) flatFwd = camFwd.normalized;
+
+                Vector3 targetPos = camPos + flatFwd * 1.25f + Vector3.up * (-0.08f);
+                transform.position = targetPos;
+                transform.rotation = Quaternion.LookRotation(transform.position - camPos);
             }
         }
 
@@ -197,7 +247,25 @@ namespace HorizonFaser.UI
                 typeText.color = currentAccent; 
             }
 
-            transform.position = spawnPosition + Vector3.up * 1.5f;
+            // Posicionar la tarjeta SIEMPRE delante del usuario en un ángulo cómodo y ergonómico
+            Camera mainCam = Camera.main ?? UnityEngine.Object.FindAnyObjectByType<Camera>();
+            if (mainCam != null)
+            {
+                _cameraTransform = mainCam.transform;
+                Vector3 camPos = mainCam.transform.position;
+                Vector3 camFwd = mainCam.transform.forward;
+                Vector3 flatFwd = new Vector3(camFwd.x, 0f, camFwd.z).normalized;
+                if (flatFwd.sqrMagnitude < 0.01f) flatFwd = camFwd.normalized;
+
+                // 1.25 metros adelante del usuario, a la altura visual de trabajo (-0.08m)
+                Vector3 targetPos = camPos + flatFwd * 1.25f + Vector3.up * (-0.08f);
+                transform.position = targetPos;
+                transform.rotation = Quaternion.LookRotation(transform.position - camPos);
+            }
+            else
+            {
+                transform.position = spawnPosition + Vector3.up * 1.5f;
+            }
 
             StopAllCoroutines();
             StartCoroutine(AnimatePopIn());
