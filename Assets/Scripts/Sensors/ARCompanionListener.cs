@@ -47,13 +47,52 @@ namespace HorizonFaser.Sensors
         // Timer for telemetry logging
         private float lastLogTime = 0f;
 
+        // SLAM Anti-Drift variables
+        private Vector3 savedCameraPosition;
+        private Quaternion savedCameraRotation;
+        private bool hasSavedPose = false;
+
+        private void Awake()
+        {
+            if (HorizonFaser.Network.NetworkConfig.UdpListenPort > 0)
+            {
+                listenPort = HorizonFaser.Network.NetworkConfig.UdpListenPort;
+            }
+        }
+
         void Start()
         {
-            autoUpdateGeoreference = true; 
+            autoUpdateGeoreference = false; // Desactivar auto-calibración inicial. Solo calibra con botón.
             
             if (georeference == null)
             {
                 georeference = FindFirstObjectByType<CesiumGeoreference>();
+            }
+
+            // Cargar estado inmutable guardado en Cache (PlayerPrefs)
+            if (PlayerPrefs.HasKey("CalibratedLat") && PlayerPrefs.HasKey("CalibratedLng") && georeference != null)
+            {
+                double lat = double.Parse(PlayerPrefs.GetString("CalibratedLat"), System.Globalization.CultureInfo.InvariantCulture);
+                double lng = double.Parse(PlayerPrefs.GetString("CalibratedLng"), System.Globalization.CultureInfo.InvariantCulture);
+                float differenceY = PlayerPrefs.GetFloat("CalibratedDifferenceY", 0f);
+                
+                georeference.latitude = lat;
+                georeference.longitude = lng;
+
+                if (Camera.main != null)
+                {
+                    Transform xrRig = Camera.main.transform.parent;
+                    while (xrRig != null && xrRig.name != "XR Origin" && xrRig.name != "XR Rig") {
+                        if (xrRig.parent == null) break;
+                        xrRig = xrRig.parent;
+                    }
+                    if (xrRig == null) xrRig = Camera.main.transform.root;
+
+                    xrRig.RotateAround(Camera.main.transform.position, Vector3.up, differenceY);
+                    Debug.Log($"[ARCompanionListener] Cache restaurado: Lat {lat}, Lng {lng}, Rot {differenceY}");
+                }
+                
+                hasAlignedOnce = true;
             }
 
             StartListening();
@@ -181,9 +220,8 @@ namespace HorizonFaser.Sensors
                 hasAlignedOnce = false; // Allow recalibration
             }
 
-            if (autoUpdateGeoreference && !hasAlignedOnce && georeference != null) 
+            if (!hasAlignedOnce && georeference != null) 
             {
-                // Align world origin with current GPS position
                 // Align world origin with current GPS position
                 georeference.latitude = data.lat;
                 georeference.longitude = data.lng;
@@ -207,8 +245,14 @@ namespace HorizonFaser.Sensors
                     // Rotar el Rig alrededor de la posición exacta de la cámara para no desplazar al usuario
                     xrRig.RotateAround(Camera.main.transform.position, Vector3.up, differenceY);
 
+                    // Guardar estado en CACHE para que sea INMUTABLE entre reinicios!
+                    PlayerPrefs.SetString("CalibratedLat", data.lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    PlayerPrefs.SetString("CalibratedLng", data.lng.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    PlayerPrefs.SetFloat("CalibratedDifferenceY", differenceY);
+                    PlayerPrefs.Save();
+
                     if (HorizonFaser.Network.NotificationListener.Instance != null) {
-                        HorizonFaser.Network.NotificationListener.Instance.LogToXR($"[CALIBRADO] Rig rotado: {differenceY:F1}°. CamY->{targetCameraY:F1}°");
+                        HorizonFaser.Network.NotificationListener.Instance.LogToXR($"[CALIBRADO] ¡Guardado en Cache! Rotación: {differenceY:F1}°");
                     }
                 }
                 
@@ -217,6 +261,58 @@ namespace HorizonFaser.Sensors
                 Debug.Log(msg);
                 if (HorizonFaser.Network.NotificationListener.Instance != null) {
                     HorizonFaser.Network.NotificationListener.Instance.LogToXR(msg);
+                }
+            }
+        }
+
+        void OnApplicationPause(bool isPaused)
+        {
+            if (isPaused)
+            {
+                // El usuario se quitó las gafas. Guardar la posición exacta de la cámara.
+                if (Camera.main != null && hasAlignedOnce)
+                {
+                    savedCameraPosition = Camera.main.transform.position;
+                    savedCameraRotation = Camera.main.transform.rotation;
+                    hasSavedPose = true;
+                    Debug.Log("[ARCompanionListener] Gafas quitadas. Guardando posición de cámara.");
+                }
+            }
+            else
+            {
+                // El usuario se puso las gafas. Restaurar la posición de la cámara.
+                if (hasSavedPose && hasAlignedOnce)
+                {
+                    StartCoroutine(RestoreCameraPoseRoutine());
+                }
+            }
+        }
+
+        private System.Collections.IEnumerator RestoreCameraPoseRoutine()
+        {
+            // Esperar 1 segundo a que el sistema SLAM de Meta Quest termine de desorientarse y asigne el nuevo (0,0,0)
+            yield return new WaitForSeconds(1.0f);
+
+            if (Camera.main != null)
+            {
+                Transform xrRig = Camera.main.transform.parent;
+                while (xrRig != null && xrRig.name != "XR Origin" && xrRig.name != "XR Rig") {
+                    if (xrRig.parent == null) break;
+                    xrRig = xrRig.parent;
+                }
+                if (xrRig == null) xrRig = Camera.main.transform.root;
+
+                // 1. Alinear Rotación: Rotar el Rig para que la cámara mire exactamente a donde miraba
+                float angleDiff = savedCameraRotation.eulerAngles.y - Camera.main.transform.eulerAngles.y;
+                xrRig.RotateAround(Camera.main.transform.position, Vector3.up, angleDiff);
+
+                // 2. Alinear Posición: Trasladar el Rig para que la cámara quede exactamente donde estaba
+                Vector3 posDiff = savedCameraPosition - Camera.main.transform.position;
+                xrRig.position += posDiff;
+
+                Debug.Log($"[ARCompanionListener] Restaurado tras pausa. Anti-SLAM drift aplicado. {angleDiff:F1}°");
+                if (HorizonFaser.Network.NotificationListener.Instance != null) {
+                    HorizonFaser.Network.NotificationListener.Instance.LogToXR($"[ANTI-DRIFT] Visor restaurado a posición original.");
                 }
             }
         }

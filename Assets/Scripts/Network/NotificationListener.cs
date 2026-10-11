@@ -44,6 +44,10 @@ namespace HorizonFaser.Network
         private void Awake()
         {
             if (Instance == null) Instance = this;
+            if (string.IsNullOrEmpty(sseEndpointUrl) || sseEndpointUrl.Contains("192.168.") || sseEndpointUrl.Contains("fedora.fritz.box"))
+            {
+                sseEndpointUrl = NetworkConfig.SseStreamUrl;
+            }
         }
 
         private void Start()

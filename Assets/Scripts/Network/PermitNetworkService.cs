@@ -28,11 +28,7 @@ namespace HorizonFaser.Network
                 bgImage.texture = null;
                 bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // Loading color
 
-#if UNITY_EDITOR
-                string baseUrl = "http://fedora.fritz.box:8080";
-#else
-                string baseUrl = "http://fedora.fritz.box:8080";
-#endif
+                string baseUrl = NetworkConfig.BaseUrl;
                 string url = $"{baseUrl}/api/v1/segments/{segmentId}/permits";
                 
                 Debug.Log("Fetching permits with HttpClient from: " + url);
@@ -113,12 +109,10 @@ namespace HorizonFaser.Network
                         foundPdfUrl = permits[0].pdfUrl;
                     }
                     
-#if !UNITY_EDITOR
                     if (!string.IsNullOrEmpty(foundPdfUrl))
                     {
-                        foundPdfUrl = foundPdfUrl.Replace("localhost", "fedora.fritz.box");
+                        foundPdfUrl = NetworkConfig.ResolveUrl(foundPdfUrl);
                     }
-#endif
                     if (!string.IsNullOrEmpty(foundPdfUrl))
                     {
                         foundPdfUrl = Uri.EscapeUriString(foundPdfUrl);
@@ -127,9 +121,7 @@ namespace HorizonFaser.Network
 
                     if (!string.IsNullOrEmpty(imgUrl))
                     {
-#if !UNITY_EDITOR
-                        imgUrl = imgUrl.Replace("localhost", "fedora.fritz.box");
-#endif
+                        imgUrl = NetworkConfig.ResolveUrl(imgUrl);
                         Debug.Log("Preview Image URL after replace: " + imgUrl);
                         imgUrl = Uri.EscapeUriString(imgUrl);
                         // Start coroutine to load image (in MonoBehaviour)

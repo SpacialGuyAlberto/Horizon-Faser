@@ -120,6 +120,7 @@ namespace HorizonFaser.Renderers
                 segmentObj.transform.localPosition = Vector3.zero;
                 segmentObj.transform.localRotation = Quaternion.identity;
 
+                // 3. Renderizar usando el LineRenderer pero con la TEXTURA 3D REALISTA del FBX nuevo!
                 LineRenderer lineRenderer = segmentObj.AddComponent<LineRenderer>();
                 lineRenderer.useWorldSpace = false; // smoothPoints están en Local Space de georeference
                 lineRenderer.startWidth = 0.5f;
@@ -128,9 +129,10 @@ namespace HorizonFaser.Renderers
                 lineRenderer.SetPositions(smoothPoints.ToArray());
                 lineRenderer.alignment = LineAlignment.View;
 
-                // 3. Material
-                string basePath = "Models/Meshy_AI_corrugated_microduct/Meshy_AI_corrugated_microduct__1001094510_image-to-3d-texture";
+                // Crear un material URP basado en las NUEVAS texturas del FBX para que tenga físicas de luz
+                string basePath = "Models/FiberDuct/Meshy_AI_corrugated_microduct__1010224537_image-to-3d-texture";
                 Material urpMat = PipeMaterialFactory.Get(basePath, segmentMaterial.color, 0.0f, 0.3f);
+
                 if (urpMat != null)
                 {
                     lineRenderer.material = urpMat;
@@ -138,6 +140,7 @@ namespace HorizonFaser.Renderers
                 }
                 else
                 {
+                    Debug.LogWarning("[Cesium] Falló la carga de la nueva textura, usando fallback.");
                     lineRenderer.material = segmentMaterial;
                 }
 
