@@ -186,18 +186,28 @@ namespace HorizonFaser.Sensors
                 }
             }
 
-            if (!string.IsNullOrEmpty(data.notificationTitle) && !string.IsNullOrEmpty(data.notificationId) && data.notificationId != _lastProcessedNotificationId)
+            if (!string.IsNullOrEmpty(data.notificationTitle))
             {
-                _lastProcessedNotificationId = data.notificationId;
-                var notifListener = FindFirstObjectByType<HorizonFaser.Network.NotificationListener>();
-                if (notifListener != null)
+                string notifId = !string.IsNullOrEmpty(data.notificationId) ? data.notificationId : $"{data.notificationTitle}_{data.notificationBody}";
+                if (notifId != _lastProcessedNotificationId)
                 {
+                    _lastProcessedNotificationId = notifId;
+                    var notifListener = HorizonFaser.Network.NotificationListener.Instance 
+                                        ?? UnityEngine.Object.FindAnyObjectByType<HorizonFaser.Network.NotificationListener>();
+                    if (notifListener == null)
+                    {
+                        GameObject go = new GameObject("NetworkManager");
+                        notifListener = go.AddComponent<HorizonFaser.Network.NotificationListener>();
+                        DontDestroyOnLoad(go);
+                    }
+
+                    Debug.Log($"[ARCompanionListener] Procesando notificación UDP de móvil: {data.notificationTitle}");
                     HorizonFaser.Network.SegmentNotification notif = new HorizonFaser.Network.SegmentNotification
                     {
                         title = data.notificationTitle,
                         body = data.notificationBody,
                         entityId = data.notificationEntityId,
-                        channel = "UDP_BRIDGE"
+                        channel = "COMPANION_UDP"
                     };
                     notifListener.UpdateVisuals(notif);
                 }
