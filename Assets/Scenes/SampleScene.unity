@@ -1329,7 +1329,7 @@ MonoBehaviour:
   passwordInput: {fileID: 1406674735}
   loginButton: {fileID: 2128652164}
   statusText: {fileID: 903101365}
-  serverUrl: https://tu-servidor.com
+  serverUrl: http://172.20.10.2:8080
   dashboardUI: {fileID: 1016269329}
 --- !u!114 &856768939
 MonoBehaviour:

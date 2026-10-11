@@ -28,7 +28,7 @@ namespace HorizonFaser.UI
         private void Awake()
         {
             // Cargar URL configurada dinámicamente desde NetworkConfig
-            if (string.IsNullOrEmpty(serverUrl) || serverUrl.Contains("fedora.fritz.box"))
+            if (string.IsNullOrEmpty(serverUrl) || serverUrl.Contains("fedora.fritz.box") || serverUrl.Contains("tu-servidor.com") || serverUrl.Contains("example.com"))
             {
                 serverUrl = HorizonFaser.Network.NetworkConfig.BaseUrl;
             }

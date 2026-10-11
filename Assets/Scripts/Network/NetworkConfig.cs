@@ -41,7 +41,7 @@ namespace HorizonFaser.Network
                     content = File.ReadAllText(path);
                 }
             }
-            catch (_) {}
+            catch (Exception) {}
 
             // 2. Check project root or current working directory (Unity Editor / Standalone)
             if (string.IsNullOrEmpty(content))
@@ -58,7 +58,7 @@ namespace HorizonFaser.Network
                         content = File.ReadAllText(".env");
                     }
                 }
-                catch (_) {}
+                catch (Exception) {}
             }
 
             // 3. Fallback to bundled Resources/env.txt (inside Quest APK)
@@ -72,7 +72,7 @@ namespace HorizonFaser.Network
                         content = textAsset.text;
                     }
                 }
-                catch (_) {}
+                catch (Exception) {}
             }
 
             if (!string.IsNullOrEmpty(content))
@@ -144,8 +144,10 @@ namespace HorizonFaser.Network
                 string saved = PlayerPrefs.GetString(PREF_SERVER_URL, "");
                 if (!string.IsNullOrEmpty(saved))
                 {
-                    if (saved.Contains("fedora.fritz.box"))
+                    if (saved.Contains("fedora.fritz.box") || saved.Contains("tu-servidor.com") || saved.Contains("example.com"))
                     {
+                        PlayerPrefs.DeleteKey(PREF_SERVER_URL);
+                        PlayerPrefs.Save();
                         return GetDefaultUrl();
                     }
                     return saved.TrimEnd('/');
@@ -157,6 +159,12 @@ namespace HorizonFaser.Network
                 if (!string.IsNullOrEmpty(value))
                 {
                     string cleaned = value.Trim().TrimEnd('/');
+                    if (cleaned.Contains("fedora.fritz.box") || cleaned.Contains("tu-servidor.com") || cleaned.Contains("example.com"))
+                    {
+                        PlayerPrefs.DeleteKey(PREF_SERVER_URL);
+                        PlayerPrefs.Save();
+                        return;
+                    }
                     PlayerPrefs.SetString(PREF_SERVER_URL, cleaned);
                     PlayerPrefs.Save();
                 }

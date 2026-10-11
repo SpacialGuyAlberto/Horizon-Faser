@@ -38,6 +38,10 @@ namespace HorizonFaser.Repositories
 
         public void Configure(string serverBaseUrl, string apiToken)
         {
+            if (string.IsNullOrEmpty(serverBaseUrl) || serverBaseUrl.Contains("fedora.fritz.box") || serverBaseUrl.Contains("tu-servidor.com") || serverBaseUrl.Contains("example.com"))
+            {
+                serverBaseUrl = HorizonFaser.Network.NetworkConfig.BaseUrl;
+            }
             ServerBaseUrl = serverBaseUrl.TrimEnd('/');
             ApiToken = apiToken;
             
@@ -48,6 +52,11 @@ namespace HorizonFaser.Repositories
         // --- MÉTODOS DE CACHÉ OFFLINE ---
         private void SaveCache(string key, string json)
         {
+            if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+            {
+                Debug.LogWarning($"[Offline Cache] Ignorando guardado de datos inválidos (HTML o vacío) para {key}");
+                return;
+            }
             try
             {
                 string path = System.IO.Path.Combine(Application.persistentDataPath, key + ".json");
@@ -67,8 +76,15 @@ namespace HorizonFaser.Repositories
                 string path = System.IO.Path.Combine(Application.persistentDataPath, key + ".json");
                 if (System.IO.File.Exists(path))
                 {
+                    string content = System.IO.File.ReadAllText(path);
+                    if (string.IsNullOrWhiteSpace(content) || content.TrimStart().StartsWith("<"))
+                    {
+                        Debug.LogWarning($"[Offline Cache] Cache corrupto detectado en {key}, eliminando archivo.");
+                        try { System.IO.File.Delete(path); } catch {}
+                        return null;
+                    }
                     Debug.Log($"[Offline Cache] Loaded {key}.json");
-                    return System.IO.File.ReadAllText(path);
+                    return content;
                 }
             }
             catch (Exception ex)
@@ -128,15 +144,35 @@ namespace HorizonFaser.Repositories
                 var response = await _httpClient.GetAsync($"{ServerBaseUrl}/api/projects/{projectId}/segments");
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
-                SaveCache(cacheKey, json);
-                return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                {
+                    throw new System.Exception($"Respuesta del servidor no es JSON válido (posible HTML/error): {json?.Substring(0, Math.Min(json?.Length ?? 0, 80))}");
+                }
+
+                var segments = JsonConvert.DeserializeObject<List<QuarkBauSegment>>(json);
+                if (segments != null)
+                {
+                    SaveCache(cacheKey, json);
+                }
+                return segments ?? new List<QuarkBauSegment>();
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[QuarkBauRemoteRepository] FetchProjectSegmentsById failed, attempting offline cache. Error: {ex.Message}");
                 var cachedJson = LoadCache(cacheKey);
                 if (!string.IsNullOrEmpty(cachedJson))
-                    return JsonConvert.DeserializeObject<List<QuarkBauSegment>>(cachedJson);
+                {
+                    try
+                    {
+                        var cachedSegments = JsonConvert.DeserializeObject<List<QuarkBauSegment>>(cachedJson);
+                        if (cachedSegments != null) return cachedSegments;
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        Debug.LogWarning($"[QuarkBauRemoteRepository] Error deserializando cache de segmentos: {cacheEx.Message}");
+                    }
+                }
                 throw;
             }
         }

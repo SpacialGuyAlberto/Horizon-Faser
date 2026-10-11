@@ -149,17 +149,22 @@ namespace HorizonFaser.UI
             if (companionListener != null && companionListener.latestData != null && companionListener.latestData.projectId > 0)
             {
                 long broadcastedProjectId = companionListener.latestData.projectId;
-                Debug.Log($"[Dashboard] Se encontró un proyecto siendo transmitido: {broadcastedProjectId}");
+                string broadcastedProjectName = companionListener.latestData.projectName;
+                Debug.Log($"[Dashboard] Se encontró un proyecto siendo transmitido: {broadcastedProjectId} ({broadcastedProjectName})");
                 
-                var targetProject = _projects.Find(p => p.Id == broadcastedProjectId);
+                var targetProject = _projects?.Find(p => p.Id == broadcastedProjectId);
                 if (targetProject != null)
                 {
+                    if (string.IsNullOrEmpty(targetProject.Name) && !string.IsNullOrEmpty(broadcastedProjectName))
+                    {
+                        targetProject.Name = broadcastedProjectName;
+                    }
                     AutoLoadAndRenderProject(targetProject);
                 }
                 else
                 {
                     // Si el proyecto transmitido no está en la lista inicial, lo creamos temporalmente para cargarlo
-                    LoadProjectFromId(broadcastedProjectId);
+                    LoadProjectFromId(broadcastedProjectId, broadcastedProjectName);
                 }
             }
             else
@@ -183,7 +188,7 @@ namespace HorizonFaser.UI
             CreateWizardButton("Ver Lista de Proyectos", ShowProjects);
         }
 
-        public void LoadProjectFromId(long projectId)
+        public void LoadProjectFromId(long projectId, string projectName = "")
         {
             if (_repository == null)
             {
@@ -191,9 +196,18 @@ namespace HorizonFaser.UI
                 ((Repositories.QuarkBauRemoteRepository)_repository).Configure(HorizonFaser.Network.NetworkConfig.BaseUrl, "");
             }
             
-            Debug.Log($"[Dashboard] Loading project {projectId} requested by Mobile App via UDP.");
-            var dummyProject = new Models.QuarkbauProject { Id = projectId };
-            AutoLoadAndRenderProject(dummyProject);
+            Debug.Log($"[Dashboard] Loading project {projectId} ({projectName}) requested by Mobile App via UDP.");
+            var existingProject = _projects?.Find(p => p.Id == projectId);
+            var projectToLoad = existingProject ?? new Models.QuarkbauProject 
+            { 
+                Id = projectId, 
+                Name = !string.IsNullOrEmpty(projectName) ? projectName : "" 
+            };
+            if (!string.IsNullOrEmpty(projectName) && string.IsNullOrEmpty(projectToLoad.Name))
+            {
+                projectToLoad.Name = projectName;
+            }
+            AutoLoadAndRenderProject(projectToLoad);
         }
 
         public async void AutoLoadAndRenderProject(Models.QuarkbauProject project)
@@ -201,13 +215,63 @@ namespace HorizonFaser.UI
             var canvas = GetComponent<Canvas>();
             
             if (_listContainer != null) _listContainer.SetActive(false);
+
+            if (string.IsNullOrEmpty(project.Name) && _projects != null)
+            {
+                var match = _projects.Find(p => p.Id == project.Id);
+                if (match != null && !string.IsNullOrEmpty(match.Name))
+                {
+                    project.Name = match.Name;
+                }
+            }
+
+            // Si el nombre sigue vacío, consultar al repositorio
+            if (string.IsNullOrEmpty(project.Name) && _repository != null)
+            {
+                try
+                {
+                    var allProjects = await _repository.FetchProjectsAsync();
+                    if (allProjects != null)
+                    {
+                        _projects = allProjects;
+                        var match = _projects.Find(p => p.Id == project.Id);
+                        if (match != null && !string.IsNullOrEmpty(match.Name))
+                        {
+                            project.Name = match.Name;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[Dashboard] No se pudo obtener la lista de proyectos para resolver el nombre: {ex.Message}");
+                }
+            }
+
+            string projectLabel = !string.IsNullOrEmpty(project.Name)
+                ? $"proyecto {project.Id} ({project.Name})"
+                : $"proyecto {project.Id}";
             
             if (welcomeText != null) {
-                welcomeText.text = $"Descargando datos del proyecto {project.Id}...";
+                welcomeText.text = $"Descargando datos del {projectLabel}...";
                 welcomeText.color = Color.yellow;
             }
 
-            var segments = await _repository.FetchProjectSegmentsByIdAsync(project.Id);
+            System.Collections.Generic.List<Models.QuarkBauSegment> segments = null;
+            try
+            {
+                segments = await _repository.FetchProjectSegmentsByIdAsync(project.Id);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Dashboard] Error al descargar segmentos para {projectLabel}: {ex.Message}");
+                if (welcomeText != null)
+                {
+                    welcomeText.text = $"Error al descargar {projectLabel}:\n{ex.Message}";
+                    welcomeText.color = Color.red;
+                }
+                if (canvas != null) canvas.enabled = true;
+                return;
+            }
             
             // 1. Calcular centro del proyecto para validación de distancia (usando segmentos si existen)
             double minLat = double.MaxValue, maxLat = double.MinValue;

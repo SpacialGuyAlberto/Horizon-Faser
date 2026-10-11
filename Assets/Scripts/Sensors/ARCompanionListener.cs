@@ -18,6 +18,7 @@ namespace HorizonFaser.Sensors
         public double accuracy;
         public string timestamp;
         public long projectId;
+        public string projectName;
         
         public string notificationTitle;
         public string notificationBody;
@@ -176,7 +177,7 @@ namespace HorizonFaser.Sensors
                 if (dashboard != null)
                 {
                     _currentProjectId = data.projectId;
-                    dashboard.LoadProjectFromId(data.projectId);
+                    dashboard.LoadProjectFromId(data.projectId, data.projectName);
                 }
                 else
                 {
