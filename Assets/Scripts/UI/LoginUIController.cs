@@ -90,7 +90,7 @@ namespace HorizonFaser.UI
 
         private async void OnLoginClicked()
         {
-            if (statusText != null) statusText.text = "Conectando al Servidor...";
+            if (statusText != null) statusText.text = "Conecting to the server...";
             if (loginButton != null) loginButton.interactable = false;
 
             try
@@ -99,13 +99,13 @@ namespace HorizonFaser.UI
                 string pass = passwordInput != null && !string.IsNullOrEmpty(passwordInput.text) ? passwordInput.text : "password123";
 
                 var userInfo = await _repository.LoginAsync(email, pass);
-                if (statusText != null) statusText.text = $"Bienvenido, {userInfo.FirstName}. Obteniendo proyectos...";
+                if (statusText != null) statusText.text = $"Welcome, {userInfo.FirstName}. Fetching Projects...";
                 
                 var projects = await _repository.FetchProjectsAsync();
 
                 if (projects != null && projects.Count > 0)
                 {
-                    if (statusText != null) statusText.text = "¡Sincronización completada!";
+                    if (statusText != null) statusText.text = "¡Sync completed!";
                     await Task.Delay(1500);
 
                     if (dashboardUI != null) 
