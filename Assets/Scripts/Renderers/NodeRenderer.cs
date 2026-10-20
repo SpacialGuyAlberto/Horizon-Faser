@@ -14,7 +14,7 @@ namespace HorizonFaser.Renderers
             // Remove nodes from a previous render (e.g. switching projects)
             var oldParent = georeference.transform.Find("Cesium_Nodes");
             if (oldParent != null) UnityEngine.Object.Destroy(oldParent.gameObject);
-
+            
             GameObject nodesParent = new GameObject("Cesium_Nodes");
             nodesParent.transform.SetParent(georeference.transform, false);
 

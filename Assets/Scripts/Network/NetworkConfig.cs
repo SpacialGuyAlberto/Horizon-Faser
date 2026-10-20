@@ -12,11 +12,11 @@ namespace HorizonFaser.Network
     {
         private const string PREF_SERVER_URL = "ServerBaseUrl";
 
-        public static string LaptopIp { get; private set; } = "172.20.10.2";
+        public static string LaptopIp { get; private set; } = "192.168.178.57";
         public static int ServerPort { get; private set; } = 8080;
         public static string GlassesIp { get; private set; } = "172.20.10.5";
         public static int UdpListenPort { get; private set; } = 8000;
-        public static string ConfiguredServerUrl { get; private set; } = "http://172.20.10.2:8080";
+        public static string ConfiguredServerUrl { get; private set; } = "http://192.168.178.57:8080";
 
         private static bool _envLoaded = false;
 

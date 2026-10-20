@@ -63,7 +63,9 @@ namespace HorizonFaser.Sensors
 
         void Start()
         {
-            autoUpdateGeoreference = false; // Desactivar auto-calibración inicial. Solo calibra con botón.
+            
+            // Quizas queremos dejar esta en true
+            autoUpdateGeoreference = true; // Desactivar auto-calibración inicial. Solo calibra con botón.
             
             if (georeference == null)
             {

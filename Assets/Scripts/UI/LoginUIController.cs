@@ -19,7 +19,7 @@ namespace HorizonFaser.UI
         public TextMeshProUGUI statusText;
 
         [Header("Configuration")]
-        public string serverUrl = "http://172.20.10.2:8080"; 
+        public string serverUrl = "http://192.168.178.57:8080"; 
         public GameObject dashboardUI; 
         
         // Dependencia inyectada para el acceso a datos

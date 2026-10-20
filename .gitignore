@@ -66,3 +66,21 @@ crashlytics-build.properties
 
 # Rider
 .idea/
+
+# ==============================================================================
+# Sensitive, Credentials & Environment Configuration Files
+# ==============================================================================
+.env
+.env.*
+!.env.example
+*.local
+*.secret
+*.key
+*.pem
+*.p12
+*.keystore
+*.jks
+
+# Unity specific environment resources with credentials/IPs
+/Assets/Resources/env.txt
+
