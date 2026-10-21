@@ -63,109 +63,105 @@ namespace HorizonFaser.XR
             else if (joystick.x < -0.5f && !_wasJoystickXPressed) { flickDir = -1; _wasJoystickXPressed = true; }
             else if (Mathf.Abs(joystick.x) < 0.2f) { _wasJoystickXPressed = false; }
 
-            // 2. Lógica de Interacción: Prioridad a Tarjetas Abiertas
+            // 2. Ciclado de opciones de la tarjeta con Joystick
             if (HorizonFaser.UI.NodeInfoCardUI.IsAnyCardOpen && HorizonFaser.UI.NodeInfoCardUI.ActiveCard != null)
             {
                 if (flickDir != 0)
                 {
                     HorizonFaser.UI.NodeInfoCardUI.ActiveCard.CycleOption(flickDir);
                 }
-                
-                if (isPressed && !_wasTriggerPressed)
+            }
+
+            // 3. Interacción con Nodos (con Ciclado por Joystick)
+            List<NetworkNodeInteractable> validNodes = new List<NetworkNodeInteractable>();
+            Dictionary<NetworkNodeInteractable, float> nodeScores = new Dictionary<NetworkNodeInteractable, float>();
+
+            foreach (var node in _nodes)
+            {
+                if (node == null || !node.gameObject.activeInHierarchy) continue;
+
+                Vector3 targetPoint = node.transform.position;
+
+                if (node.nodeType == NetworkNodeType.Segmento)
                 {
-                    HorizonFaser.UI.NodeInfoCardUI.ActiveCard.SelectCurrentOption();
+                    if (node.linePoints != null && node.linePoints.Length > 1)
+                    {
+                        float closestSubDist = float.MaxValue;
+                        Vector3 bestPoint = node.linePoints[0];
+                        for(int i = 0; i < node.linePoints.Length - 1; i++)
+                        {
+                            Vector3 pA = node.linePoints[i];
+                            Vector3 pB = node.linePoints[i+1];
+                            Vector3 closestOnSub = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                            float dist = Vector3.Distance(pointer.position, closestOnSub);
+                            if(dist < closestSubDist)
+                            {
+                                closestSubDist = dist;
+                                bestPoint = closestOnSub;
+                            }
+                        }
+                        targetPoint = bestPoint;
+                    }
+                    else
+                    {
+                        float halfLength = node.transform.lossyScale.y;
+                        Vector3 pA = node.transform.position - node.transform.up * halfLength;
+                        Vector3 pB = node.transform.position + node.transform.up * halfLength;
+                        targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
+                    }
                 }
-                _wasTriggerPressed = isPressed;
+
+                Vector3 toNode = targetPoint - pointer.position;
+                float distance = toNode.magnitude;
+                float angle = Vector3.Angle(pointer.forward, toNode.normalized);
+
+                if (angle < maxAngle)
+                {
+                    float score = angle + (distance * 0.0001f);
+                    if (node.nodeType == NetworkNodeType.Segmento && angle < 5f)
+                    {
+                        score = -1000f + angle; // Priorizar tubos si miramos directo a ellos
+                    }
+                    validNodes.Add(node);
+                    nodeScores[node] = score;
+                }
+            }
+
+            validNodes.Sort((a, b) => nodeScores[a].CompareTo(nodeScores[b]));
+
+            NetworkNodeInteractable currentBest = validNodes.Count > 0 ? validNodes[0] : null;
+            if (currentBest != _lastBestNode)
+            {
+                _cycleOffset = 0;
+                _lastBestNode = currentBest;
+            }
+
+            if (validNodes.Count > 0)
+            {
+                if (flickDir != 0 && !HorizonFaser.UI.NodeInfoCardUI.IsAnyCardOpen)
+                {
+                    _cycleOffset += flickDir;
+                }
+                if (_cycleOffset < 0) _cycleOffset = validNodes.Count - 1;
+                _hoveredNode = validNodes[_cycleOffset % validNodes.Count];
             }
             else
             {
-                // NO HAY TARJETAS: Interacción con Nodos (con Ciclado por Joystick)
-                List<NetworkNodeInteractable> validNodes = new List<NetworkNodeInteractable>();
-                Dictionary<NetworkNodeInteractable, float> nodeScores = new Dictionary<NetworkNodeInteractable, float>();
-
-                foreach (var node in _nodes)
-                {
-                    if (node == null || !node.gameObject.activeInHierarchy) continue;
-
-                    Vector3 targetPoint = node.transform.position;
-
-                    if (node.nodeType == NetworkNodeType.Segmento)
-                    {
-                        if (node.linePoints != null && node.linePoints.Length > 1)
-                        {
-                            float closestSubDist = float.MaxValue;
-                            Vector3 bestPoint = node.linePoints[0];
-                            for(int i = 0; i < node.linePoints.Length - 1; i++)
-                            {
-                                Vector3 pA = node.linePoints[i];
-                                Vector3 pB = node.linePoints[i+1];
-                                Vector3 closestOnSub = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
-                                float dist = Vector3.Distance(pointer.position, closestOnSub);
-                                if(dist < closestSubDist)
-                                {
-                                    closestSubDist = dist;
-                                    bestPoint = closestOnSub;
-                                }
-                            }
-                            targetPoint = bestPoint;
-                        }
-                        else
-                        {
-                            float halfLength = node.transform.lossyScale.y;
-                            Vector3 pA = node.transform.position - node.transform.up * halfLength;
-                            Vector3 pB = node.transform.position + node.transform.up * halfLength;
-                            targetPoint = GetClosestPointOnSegmentToRay(pA, pB, pointer.position, pointer.forward);
-                        }
-                    }
-
-                    Vector3 toNode = targetPoint - pointer.position;
-                    float distance = toNode.magnitude;
-                    float angle = Vector3.Angle(pointer.forward, toNode.normalized);
-
-                    if (angle < maxAngle)
-                    {
-                        float score = angle + (distance * 0.0001f);
-                        if (node.nodeType == NetworkNodeType.Segmento && angle < 5f)
-                        {
-                            score = -1000f + angle; // Priorizar tubos si miramos directo a ellos
-                        }
-                        validNodes.Add(node);
-                        nodeScores[node] = score;
-                    }
-                }
-
-                validNodes.Sort((a, b) => nodeScores[a].CompareTo(nodeScores[b]));
-
-                NetworkNodeInteractable currentBest = validNodes.Count > 0 ? validNodes[0] : null;
-                if (currentBest != _lastBestNode)
-                {
-                    _cycleOffset = 0;
-                    _lastBestNode = currentBest;
-                }
-
-                if (validNodes.Count > 0)
-                {
-                    if (flickDir != 0)
-                    {
-                        _cycleOffset += flickDir;
-                    }
-                    if (_cycleOffset < 0) _cycleOffset = validNodes.Count - 1;
-                    _hoveredNode = validNodes[_cycleOffset % validNodes.Count];
-                }
-                else
-                {
-                    _hoveredNode = null;
-                }
-
-                if (isPressed && !_wasTriggerPressed)
-                {
-                    if (_hoveredNode != null)
-                    {
-                        _hoveredNode.ForceTrigger();
-                    }
-                }
-                _wasTriggerPressed = isPressed;
+                _hoveredNode = null;
             }
+
+            if (isPressed && !_wasTriggerPressed)
+            {
+                if (_hoveredNode != null)
+                {
+                    _hoveredNode.ForceTrigger();
+                }
+                else if (HorizonFaser.UI.NodeInfoCardUI.IsAnyCardOpen && HorizonFaser.UI.NodeInfoCardUI.ActiveCard != null)
+                {
+                    HorizonFaser.UI.NodeInfoCardUI.ActiveCard.SelectCurrentOption();
+                }
+            }
+            _wasTriggerPressed = isPressed;
 
             // 3. Animar el tamaño visualmente (Hover)
             foreach (var node in _nodes)

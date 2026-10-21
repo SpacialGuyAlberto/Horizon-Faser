@@ -14,7 +14,7 @@ namespace HorizonFaser.Sensors
         public double lat;
         public double lng;
         public double alt;
-        public double heading;
+        public double heading; // Compatibilidad hacia atrás (ignorado en rotación)
         public double accuracy;
         public string timestamp;
         public long projectId;
@@ -63,39 +63,23 @@ namespace HorizonFaser.Sensors
 
         void Start()
         {
-            
-            // Quizas queremos dejar esta en true
-            autoUpdateGeoreference = true; // Desactivar auto-calibración inicial. Solo calibra con botón.
+            autoUpdateGeoreference = true;
             
             if (georeference == null)
             {
                 georeference = FindFirstObjectByType<CesiumGeoreference>();
             }
 
-            // Cargar estado inmutable guardado en Cache (PlayerPrefs)
+            // Cargar estado guardado en Cache (PlayerPrefs)
             if (PlayerPrefs.HasKey("CalibratedLat") && PlayerPrefs.HasKey("CalibratedLng") && georeference != null)
             {
                 double lat = double.Parse(PlayerPrefs.GetString("CalibratedLat"), System.Globalization.CultureInfo.InvariantCulture);
                 double lng = double.Parse(PlayerPrefs.GetString("CalibratedLng"), System.Globalization.CultureInfo.InvariantCulture);
-                float differenceY = PlayerPrefs.GetFloat("CalibratedDifferenceY", 0f);
                 
                 georeference.latitude = lat;
                 georeference.longitude = lng;
 
-                if (Camera.main != null)
-                {
-                    Transform xrRig = Camera.main.transform.parent;
-                    while (xrRig != null && xrRig.name != "XR Origin" && xrRig.name != "XR Rig") {
-                        if (xrRig.parent == null) break;
-                        xrRig = xrRig.parent;
-                    }
-                    if (xrRig == null) xrRig = Camera.main.transform.root;
-
-                    xrRig.RotateAround(Camera.main.transform.position, Vector3.up, differenceY);
-                    Debug.Log($"[ARCompanionListener] Cache restaurado: Lat {lat}, Lng {lng}, Rot {differenceY}");
-                }
-                
-                hasAlignedOnce = true;
+                Debug.Log($"[ARCompanionListener] Cache restaurado: Lat {lat}, Lng {lng}");
             }
 
             StartListening();
@@ -171,7 +155,7 @@ namespace HorizonFaser.Sensors
 
         private void ProcessData(ARCompanionData data)
         {
-            // Debug.Log($"[ARCompanionListener] Datos GPS recibidos - Lat: {data.lat}, Lng: {data.lng}, Project: {data.projectId}");
+             Debug.Log($"[ARCompanionListener] Datos GPS recibidos - Lat: {data.lat}, Lng: {data.lng}, Project: {data.projectId}");
 
             if (data.projectId > 0 && data.projectId != _currentProjectId)
             {
@@ -222,7 +206,7 @@ namespace HorizonFaser.Sensors
                 float camY = 0f;
                 if (Camera.main != null) camY = Camera.main.transform.eulerAngles.y;
                 
-                string msg = $"[TELEMETRIA] Lat:{data.lat:F5} Lng:{data.lng:F5} Brújula:{data.heading:F1} | HeadsetRotY:{camY:F1}";
+                string msg = $"[TELEMETRIA] Lat:{data.lat:F5} Lng:{data.lng:F5} | HeadsetRotY:{camY:F1}";
                 if (HorizonFaser.Network.NotificationListener.Instance != null) {
                     HorizonFaser.Network.NotificationListener.Instance.LogToXR(msg);
                 }
@@ -238,39 +222,14 @@ namespace HorizonFaser.Sensors
                 // Align world origin with current GPS position
                 georeference.latitude = data.lat;
                 georeference.longitude = data.lng;
+
+                // Guardar estado en CACHE para que sea INMUTABLE entre reinicios!
+                PlayerPrefs.SetString("CalibratedLat", data.lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                PlayerPrefs.SetString("CalibratedLng", data.lng.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                PlayerPrefs.Save();
                 
-                // CesiumGlobeAnchor ignora la rotación del padre en Unity. 
-                // Para rotar el mundo virtual alrededor del usuario, rotamos el XR Rig (el usuario).
-                if (data.heading > 0 && Camera.main != null)
-                {
-                    float targetCameraY = (float)data.heading - (float)data.manualRotation;
-                    float currentCameraY = Camera.main.transform.eulerAngles.y;
-                    float differenceY = targetCameraY - currentCameraY;
-
-                    // Encontrar el XR Rig (root del player)
-                    Transform xrRig = Camera.main.transform.parent;
-                    while (xrRig != null && xrRig.name != "XR Origin" && xrRig.name != "XR Rig") {
-                        if (xrRig.parent == null) break;
-                        xrRig = xrRig.parent;
-                    }
-                    if (xrRig == null) xrRig = Camera.main.transform.root;
-
-                    // Rotar el Rig alrededor de la posición exacta de la cámara para no desplazar al usuario
-                    xrRig.RotateAround(Camera.main.transform.position, Vector3.up, differenceY);
-
-                    // Guardar estado en CACHE para que sea INMUTABLE entre reinicios!
-                    PlayerPrefs.SetString("CalibratedLat", data.lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    PlayerPrefs.SetString("CalibratedLng", data.lng.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    PlayerPrefs.SetFloat("CalibratedDifferenceY", differenceY);
-                    PlayerPrefs.Save();
-
-                    if (HorizonFaser.Network.NotificationListener.Instance != null) {
-                        HorizonFaser.Network.NotificationListener.Instance.LogToXR($"[CALIBRADO] ¡Guardado en Cache! Rotación: {differenceY:F1}°");
-                    }
-                }
-                
-                hasAlignedOnce = true; // Desactivar para evitar jitter de rotación en cada frame
-                string msg = $"[ALINEADO] Lat:{data.lat:F6} Lng:{data.lng:F6} Head:{data.heading:F1}";
+                hasAlignedOnce = true; // Desactivar para evitar jitter en cada frame
+                string msg = $"[ALINEADO] Lat:{data.lat:F6} Lng:{data.lng:F6}";
                 Debug.Log(msg);
                 if (HorizonFaser.Network.NotificationListener.Instance != null) {
                     HorizonFaser.Network.NotificationListener.Instance.LogToXR(msg);
@@ -338,10 +297,6 @@ namespace HorizonFaser.Sensors
                 {
                     georeference.latitude = latestData.lat;
                     georeference.longitude = latestData.lng;
-                    if (latestData.heading > 0)
-                    {
-                        georeference.transform.rotation = Quaternion.Euler(0, -(float)latestData.heading + 225f, 0);
-                    }
                     Debug.Log($"[ARCompanionListener] Georeferencia alineada manualmente a: {latestData.lat}, {latestData.lng}");
                 }
                 else

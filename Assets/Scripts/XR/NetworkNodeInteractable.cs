@@ -43,11 +43,14 @@ namespace HorizonFaser.XR
         private void Awake()
         {
             _interactable = GetComponent<XRSimpleInteractable>();
-            
-            // Gestión de la Interfaz UI
+            EnsureInfoCard();
+        }
+
+        private void EnsureInfoCard()
+        {
             if (infoCardUI == null)
             {
-                infoCardUI = FindFirstObjectByType<NodeInfoCardUI>(FindObjectsInactive.Include);
+                infoCardUI = NodeInfoCardUI.ActiveCard ?? FindFirstObjectByType<NodeInfoCardUI>(FindObjectsInactive.Include);
                 if (infoCardUI == null)
                 {
                     if (_sharedGeneratedCard == null)
@@ -61,6 +64,8 @@ namespace HorizonFaser.XR
 
         private void Start()
         {
+            EnsureInfoCard();
+
             // Asegurarnos de que el Imán de Puntero exista siempre
             if (XRPointerMagnet.Instance == null)
             {
@@ -74,17 +79,6 @@ namespace HorizonFaser.XR
             
             // Registrar este nodo en el sistema de Puntero Magnético
             XRPointerMagnet.Instance.RegisterNode(this);
-
-            // Forzamos ocultar la tarjeta al iniciar
-            Invoke(nameof(ForceHideUI), 0.1f);
-        }
-
-        private void ForceHideUI()
-        {
-            if (infoCardUI != null)
-            {
-                infoCardUI.HideCard();
-            }
         }
 
         private void OnEnable()
@@ -120,19 +114,12 @@ namespace HorizonFaser.XR
         {
             float timeSinceLastClick = Time.time - _lastClickTime;
             
-            // Ignorar eventos duplicados disparados en el mismo milisegundo por el motor
-            if (timeSinceLastClick < 0.1f) return;
+            // Ignorar rebotes rápidos de evento (< 0.15s)
+            if (timeSinceLastClick < 0.15f) return;
 
             _lastClickTime = Time.time;
 
-            if (infoCardUI == null)
-            {
-                infoCardUI = NodeInfoCardUI.ActiveCard ?? FindFirstObjectByType<NodeInfoCardUI>(FindObjectsInactive.Include);
-                if (infoCardUI == null && _sharedGeneratedCard != null)
-                {
-                    infoCardUI = _sharedGeneratedCard;
-                }
-            }
+            EnsureInfoCard();
 
             // Si ya hay una tarjeta abierta para este MISMO nodo y se hace clic rápido (< 0.5s), cerrarla
             if (NodeInfoCardUI.IsAnyCardOpen && NodeInfoCardUI.ActiveCard != null && NodeInfoCardUI.ActiveCard.CurrentTargetNode == this.gameObject)
@@ -157,6 +144,10 @@ namespace HorizonFaser.XR
                 infoCardUI.ShowCard(typeStr, nodeName, nodeDetails, spawnPos, assignedCrew, assignedMachine, segmentId, this.gameObject);
                 Debug.Log($"[NetworkNode] Clic/Interacción detectado en: {typeStr} - {nodeName} (SegId: {segmentId})");
             }
+            else
+            {
+                Debug.LogError("[NetworkNode] Error: infoCardUI no está disponible.");
+            }
         }
 
         /// <summary>
@@ -175,20 +166,39 @@ namespace HorizonFaser.XR
         public static NetworkNodeInteractable AttachToNode(GameObject targetObj, NetworkNodeType type, string name, string details, Crew crew = null, Machine machine = null, long segmentId = 0)
         {
             // PREPARACIÓN DE COLLIDERS:
-            // Debe hacerse ANTES de añadir NetworkNodeInteractable, para que cuando 
-            // XRSimpleInteractable ejecute su Awake(), los colisionadores ya existan y los detecte.
+            // Usamos BoxCollider porque en Android runtime MeshCollider falla en modelos importados
+            // al estar marcados como non-accessible. BoxCollider es 100% fiable y súper ligero.
             if (type != NetworkNodeType.Segmento)
             {
-                var oldBox = targetObj.GetComponent<BoxCollider>();
-                if (oldBox != null) Destroy(oldBox);
-
-                foreach (var mf in targetObj.GetComponentsInChildren<MeshFilter>())
+                BoxCollider box = targetObj.GetComponent<BoxCollider>();
+                if (box == null)
                 {
-                    if (mf.gameObject.GetComponent<Collider>() == null)
+                    box = targetObj.AddComponent<BoxCollider>();
+                }
+
+                Renderer[] renderers = targetObj.GetComponentsInChildren<Renderer>();
+                if (renderers.Length > 0)
+                {
+                    Bounds bounds = renderers[0].bounds;
+                    for (int i = 1; i < renderers.Length; i++)
                     {
-                        var mc = mf.gameObject.AddComponent<MeshCollider>();
-                        mc.convex = false; 
+                        bounds.Encapsulate(renderers[i].bounds);
                     }
+
+                    box.center = targetObj.transform.InverseTransformPoint(bounds.center);
+                    Vector3 lossy = targetObj.transform.lossyScale;
+                    Vector3 size = bounds.size;
+                    box.size = new Vector3(
+                        lossy.x != 0 ? Mathf.Abs(size.x / lossy.x) : size.x,
+                        lossy.y != 0 ? Mathf.Abs(size.y / lossy.y) : size.y,
+                        lossy.z != 0 ? Mathf.Abs(size.z / lossy.z) : size.z
+                    );
+                    // Asegurar un tamaño mínimo amplio para que sea fácil apuntar y hacer clic en VR
+                    box.size = Vector3.Max(box.size, Vector3.one * 1.5f);
+                }
+                else
+                {
+                    box.size = Vector3.one * 2f;
                 }
             }
 
@@ -200,6 +210,20 @@ namespace HorizonFaser.XR
             interactable.assignedCrew = crew;
             interactable.assignedMachine = machine;
             interactable.segmentId = segmentId;
+
+            // Aseguramos que el XRSimpleInteractable registre TODOS los colliders (incluyendo hijos para segmentos)
+            var xrInteractable = targetObj.GetComponent<XRSimpleInteractable>();
+            if (xrInteractable != null)
+            {
+                var allColliders = targetObj.GetComponentsInChildren<Collider>();
+                foreach (var c in allColliders)
+                {
+                    if (!xrInteractable.colliders.Contains(c))
+                    {
+                        xrInteractable.colliders.Add(c);
+                    }
+                }
+            }
 
             return interactable;
         }

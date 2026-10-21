@@ -186,6 +186,7 @@ namespace HorizonFaser.UI
         {
             IsAnyCardOpen = true;
             gameObject.SetActive(true);
+            _currentAnimFactor = 1f;
             
             _currentSegmentId = segmentId;
             _currentTargetNode = targetNode;

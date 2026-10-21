@@ -4,9 +4,10 @@ using System.IO;
 
 public class BuildScript
 {
+    [MenuItem("Build/Build Android APK")]
     public static void BuildAndroid()
     {
-        string buildPath = "/home/luis/Dokumente/Unity/Horizon-faser/Builds/HorizonFaser.apk";
+        string buildPath = "/home/luis/Dokumente/Unity/Horizon-faser/Builds/LocationCorrection.apk";
         Directory.CreateDirectory(Path.GetDirectoryName(buildPath));
 
         string[] scenes = new string[] { "Assets/Scenes/SampleScene.unity" };
